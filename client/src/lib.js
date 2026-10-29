@@ -81,6 +81,22 @@ export const GAME_META = {
       { key: 'write', label: 'כתיבת מילה', def: 45 },
     ],
   },
+  quote: {
+    name: 'ציטוט',
+    emoji: '💬',
+    color: 'from-red-500 to-orange-500',
+    desc: 'כולם כותבים משפטים, והמנחש צריך לזהות מי כתב מה. כל טעות - נקודה לכותב!',
+    minPlayers: 3,
+    settings: [
+      { key: 'rounds', label: 'מספר סיבובים', type: 'number', min: 1, max: 30, def: (n) => n },
+      { key: 'perRound', label: 'משפטים בכל סיבוב', type: 'number', min: 1, max: 50, def: () => 10 },
+      { key: 'perPerson', label: 'משפטים לכל שחקן', type: 'number', min: 1, max: 10, def: () => 3 },
+    ],
+    timers: [
+      { key: 'write', label: 'כתיבת המשפטים', def: 90 },
+      { key: 'guess', label: 'ניחוש מי כתב מה', def: 120 },
+    ],
+  },
 };
 
 const FINAL_FORMS = { כ: 'ך', מ: 'ם', נ: 'ן', פ: 'ף', צ: 'ץ' };
