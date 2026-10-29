@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Aharoni מותקן מקומית ב-Windows רבים; אם לא - נופלים ל-Secular One */
+@font-face {
+  font-family: 'Aharoni';
+  src: local('Aharoni Bold'), local('Aharoni-Bold'), local('Aharoni');
+  font-weight: 700;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+  body {
+    @apply font-sans text-ink antialiased;
+    background-color: #4c1d95;
+    background-image:
+      radial-gradient(rgba(255, 255, 255, 0.09) 1.5px, transparent 1.5px),
+      radial-gradient(circle at 15% 10%, #db2777 0%, transparent 45%),
+      radial-gradient(circle at 85% 90%, #0891b2 0%, transparent 45%),
+      linear-gradient(135deg, #5b21b6 0%, #4c1d95 50%, #312e81 100%);
+    background-size: 22px 22px, 100% 100%, 100% 100%, 100% 100%;
+    background-attachment: fixed;
+  }
+  input,
+  textarea {
+    @apply outline-none;
+  }
+}
+
+@layer components {
+  .font-display {
+    font-weight: 700;
+    letter-spacing: 0.01em;
+  }
+  .card {
+    @apply rounded-3xl bg-white/95 p-5 shadow-[0_10px_40px_-10px_rgba(30,27,75,0.45)] backdrop-blur sm:p-6;
+  }
+  .btn {
+    @apply inline-flex select-none items-center justify-center gap-2 rounded-2xl px-5 py-3 font-display text-lg transition-all duration-100
+      active:translate-y-[4px] active:shadow-none disabled:cursor-not-allowed disabled:opacity-50 disabled:active:translate-y-0;
+  }
+  .btn-primary {
+    @apply btn bg-sun text-ink shadow-[0_5px_0_#c99a00] hover:brightness-105;
+  }
+  .btn-pink {
+    @apply btn bg-bubble text-white shadow-[0_5px_0_#c2185b] hover:brightness-105;
+  }
+  .btn-mint {
+    @apply btn bg-mint text-white shadow-[0_5px_0_#1a8c82] hover:brightness-105;
+  }
+  .btn-sky {
+    @apply btn bg-sky text-white shadow-[0_5px_0_#1f5fc4] hover:brightness-105;
+  }
+  .btn-ghost {
+    @apply btn bg-indigo-50 text-ink shadow-[0_5px_0_#c7c9f2] hover:bg-indigo-100;
+  }
+  .input {
+    @apply w-full rounded-2xl border-2 border-indigo-100 bg-indigo-50/60 px-4 py-3 text-lg transition focus:border-grape focus:bg-white;
+  }
+  .chip {
+    @apply inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-3 py-1 text-sm font-semibold;
+  }
+  .label {
+    @apply mb-2 block text-sm font-bold text-indigo-900/70;
+  }
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: #c7c9f2;
+  border-radius: 9999px;
+}
