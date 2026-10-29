@@ -12,7 +12,7 @@ export default {
         sun: '#FFD23F',
         bubble: '#FF5D8F',
         mint: '#2EC4B6',
-        sky: '#3A86FF',
+        azure: '#3A86FF',
         grape: '#7B2FF7',
       },
       keyframes: {

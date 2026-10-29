@@ -3,7 +3,7 @@ import { useRoom, GameHeader, PlayerTag, Waiting, DoneRow, NextButton, RoundPoin
 
 export default function WouldYouRather({ g }) {
   return (
-    <div className="card bg-blue-100">
+    <div className="card">
       <GameHeader title="🤔 מה אתה מעדיף" round={g.round} totalRounds={g.totalRounds}>
         <span className="chip bg-pink-100 text-pink-800">
           הקובע: <PlayerTag id={g.deciderId} />
@@ -39,9 +39,9 @@ function WritePhase({ g }) {
     <div className="animate-rise">
       <p className="mb-4 text-center font-display text-2xl">אתם הקובעים! מה אתם מעדיפים…</p>
       <div className="grid items-center gap-3 sm:grid-cols-[1fr_auto_1fr]">
-        <input className="input border-pink-300 bg-blue-200/70 text-center focus:bg-blue-200" placeholder="אפשרות א׳" value={a} maxLength={80} onChange={(e) => setA(e.target.value)} autoFocus />
+        <input className="input border-pink-200 text-center" placeholder="אפשרות א׳" value={a} maxLength={80} onChange={(e) => setA(e.target.value)} autoFocus />
         <span className="text-center font-display text-2xl text-indigo-300">או</span>
-        <input className="input border-sky-300 bg-blue-200/70 text-center focus:bg-blue-200" placeholder="אפשרות ב׳" value={b} maxLength={80} onChange={(e) => setB(e.target.value)} />
+        <input className="input border-sky-200 text-center" placeholder="אפשרות ב׳" value={b} maxLength={80} onChange={(e) => setB(e.target.value)} />
       </div>
       <div className="mt-5 flex justify-center">
         <button className="btn-pink px-10" disabled={!a.trim() || !b.trim()} onClick={() => act('submit', { a, b })}>
@@ -125,7 +125,7 @@ function GuessPhase({ g }) {
       </p>
       <div className="space-y-2">
         {targets.map((id) => (
-          <div key={id} className="flex items-center justify-between gap-3 rounded-2xl bg-blue-200 px-3 py-2">
+          <div key={id} className="flex items-center justify-between gap-3 rounded-2xl bg-indigo-50 px-3 py-2">
             <PlayerTag id={id} />
             <div className="flex gap-2">
               {['A', 'B'].map((opt) => (
@@ -137,8 +137,8 @@ function GuessPhase({ g }) {
                     guesses[id] === opt
                       ? opt === 'A'
                         ? 'bg-bubble text-white shadow-[0_3px_0_#c2185b]'
-                        : 'bg-indigo-600 text-white shadow-[0_3px_0_#312e81]'
-                      : 'bg-blue-400 text-white hover:bg-blue-500'
+                        : 'bg-azure text-white shadow-[0_3px_0_#1f5fc4]'
+                      : 'bg-white text-indigo-400 hover:bg-indigo-100'
                   }`}
                 >
                   {opt === 'A' ? 'א׳' : 'ב׳'}
@@ -176,7 +176,7 @@ function RevealPhase({ g }) {
     <div className="animate-rise">
       <div className="grid gap-4 sm:grid-cols-2">
         {['A', 'B'].map((opt, i) => (
-          <div key={opt} className={`rounded-3xl p-4 ${opt === 'A' ? 'bg-pink-200' : 'bg-sky-200'}`}>
+          <div key={opt} className={`rounded-3xl p-4 ${opt === 'A' ? 'bg-pink-50' : 'bg-sky-50'}`}>
             <div className={`font-display text-xl ${opt === 'A' ? 'text-pink-600' : 'text-indigo-600'}`}>{g.options[i]}</div>
             <div className="mt-3 flex flex-wrap gap-2">
               {voters
@@ -185,7 +185,7 @@ function RevealPhase({ g }) {
                   const myGuess = g.myGuesses?.[id];
                   const mark = id === state.me ? '' : myGuess ? (myGuess === opt ? ' ✅' : ' ❌') : '';
                   return (
-                    <span key={id} className="chip animate-pop bg-blue-200 text-blue-950">
+                    <span key={id} className="chip animate-pop bg-white">
                       <PlayerTag id={id} suffix={mark} />
                     </span>
                   );

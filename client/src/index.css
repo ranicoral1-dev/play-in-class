@@ -54,7 +54,7 @@
     @apply btn bg-mint text-white shadow-[0_5px_0_#1a8c82] hover:brightness-105;
   }
   .btn-sky {
-    @apply btn bg-sky text-white shadow-[0_5px_0_#1f5fc4] hover:brightness-105;
+    @apply btn bg-azure text-white shadow-[0_5px_0_#1f5fc4] hover:brightness-105;
   }
   .btn-ghost {
     @apply btn bg-indigo-50 text-ink shadow-[0_5px_0_#c7c9f2] hover:bg-indigo-100;
