@@ -195,8 +195,12 @@ function ReviewBox({ g, entry }) {
   const p = usePlayer(entry.pid);
   const isCat = entry.type === 'category';
   return (
-    <div className="animate-pop rounded-3xl border-4 border-dashed border-amber-300 bg-amber-50 p-5 text-center">
-      <div className="text-sm font-bold text-amber-700">
+    <div
+      className={`animate-pop rounded-3xl border-4 border-dashed p-5 text-center ${
+        isCat ? 'border-rose-400 bg-rose-100' : 'border-emerald-400 bg-emerald-100'
+      }`}
+    >
+      <div className={`text-sm font-bold ${isCat ? 'text-rose-700' : 'text-emerald-700'}`}>
         {p.emoji} {p.name} {isCat ? 'מנחש/ת שהקטגוריה היא:' : 'רוצה להביא:'}
       </div>
       <div className="my-2 font-display text-3xl">{entry.text}</div>
