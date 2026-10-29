@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useRoom, GameHeader, PlayerTag, Waiting, DoneRow, NextButton } from '../components/ui.jsx';
+import { useRoom, GameHeader, PlayerTag, Waiting, DoneRow, NextButton, EditButton } from '../components/ui.jsx';
 
 export default function Story({ g }) {
   const inVote = g.phase !== 'write';
@@ -22,22 +22,40 @@ function countWords(s) {
 function WritePhase({ g }) {
   const { act, state } = useRoom();
   const [text, setText] = useState('');
+  const [editing, setEditing] = useState(false);
+  const sent = g.myText != null && !editing;
   const t = useRef();
   const words = countWords(text);
   const over = words > g.maxWords;
   const ids = state.players.filter((p) => p.inGame).map((p) => p.id);
 
   useEffect(() => {
-    if (g.submitted) return;
+    if (sent) return;
     clearTimeout(t.current);
     t.current = setTimeout(() => act('draft', text), 500);
     return () => clearTimeout(t.current);
-  }, [text, g.submitted, act]);
+  }, [text, sent, act]);
+
+  const submit = async () => {
+    if (!(await act('submit', text)).error) setEditing(false);
+  };
 
   return (
     <div className="animate-rise">
-      {g.submitted ? (
-        <Waiting emoji="📮">הקטע נשלח! מחכים לשאר הסופרים…</Waiting>
+      {sent ? (
+        <div className="text-center">
+          <Waiting emoji="📮">הקטע נשלח! מחכים לשאר הסופרים…</Waiting>
+          <p className="mx-auto max-w-xl rounded-2xl bg-indigo-50 px-4 py-2 text-lg">
+            {g.prompt && <b className="text-grape">{g.prompt} </b>}
+            {g.myText}
+          </p>
+          <EditButton
+            onClick={() => {
+              setText(g.myText);
+              setEditing(true);
+            }}
+          />
+        </div>
       ) : (
         <div className="mx-auto max-w-2xl">
           <p className="mb-4 text-center font-display text-2xl">
@@ -57,7 +75,7 @@ function WritePhase({ g }) {
             <span className={`text-sm font-bold ${over ? 'text-bubble' : 'text-indigo-400'}`}>
               {words}/{g.maxWords} מילים {over && '· רק המילים הראשונות יישמרו'}
             </span>
-            <button className="btn-sky" disabled={!text.trim()} onClick={() => act('submit', text)}>
+            <button className="btn-sky" disabled={!text.trim()} onClick={submit}>
               שליחה ←
             </button>
           </div>
@@ -71,7 +89,8 @@ function WritePhase({ g }) {
 function VotePhase({ g }) {
   const { act, state } = useRoom();
   const [ratings, setRatings] = useState(g.myRatings || {});
-  const submitted = !!g.myRatings;
+  const [editing, setEditing] = useState(false);
+  const submitted = !!g.myRatings && !editing;
   const toRate = g.stories.filter((s) => !s.mine);
   const complete = toRate.every((s) => ratings[s.idx]);
   const ids = state.players.filter((p) => p.inGame).map((p) => p.id);
@@ -105,9 +124,17 @@ function VotePhase({ g }) {
           </div>
         ))}
       </div>
-      {!submitted && (
+      {submitted ? (
+        <div className="text-center">
+          <EditButton onClick={() => setEditing(true)} />
+        </div>
+      ) : (
         <div className="mt-5 flex justify-center">
-          <button className="btn-mint px-10" disabled={!complete} onClick={() => act('rate', ratings)}>
+          <button
+            className="btn-mint px-10"
+            disabled={!complete}
+            onClick={async () => !(await act('rate', ratings)).error && setEditing(false)}
+          >
             שליחת דירוג
           </button>
         </div>

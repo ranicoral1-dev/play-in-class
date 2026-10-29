@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useRoom, GameHeader, Waiting, DoneRow, NextButton, usePlayer } from '../components/ui.jsx';
+import { useRoom, GameHeader, Waiting, DoneRow, NextButton, usePlayer, EditButton } from '../components/ui.jsx';
 
 export default function SameWord({ g }) {
   return (
@@ -76,8 +76,13 @@ function GroupMember({ id }) {
 function WritePhase({ g }) {
   const { act, state } = useRoom();
   const [word, setWord] = useState('');
+  const [editing, setEditing] = useState(false);
   const ids = state.players.filter((p) => p.inGame).map((p) => p.id);
   const first = !g.previous;
+  const send = async () => {
+    if (!word.trim()) return;
+    if (!(await act('word', word)).error) setEditing(false);
+  };
 
   return (
     <div className="animate-rise">
@@ -91,10 +96,18 @@ function WritePhase({ g }) {
           <Groups groups={g.previous.groups} />
         </>
       )}
-      {g.myWord ? (
-        <Waiting emoji="🤞">
-          כתבת: <span className="text-grape">{g.myWord}</span> · מחכים לשאר…
-        </Waiting>
+      {g.myWord && !editing ? (
+        <div className="text-center">
+          <Waiting emoji="🤞">
+            כתבת: <span className="text-grape">{g.myWord}</span> · מחכים לשאר…
+          </Waiting>
+          <EditButton
+            onClick={() => {
+              setWord(g.myWord);
+              setEditing(true);
+            }}
+          />
+        </div>
       ) : (
         <div className="mx-auto mt-6 flex max-w-md gap-2">
           <input
@@ -104,9 +117,9 @@ function WritePhase({ g }) {
             placeholder="המילה שלי"
             value={word}
             onChange={(e) => setWord(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && word.trim() && act('word', word)}
+            onKeyDown={(e) => e.key === 'Enter' && send()}
           />
-          <button className="btn-mint shrink-0" disabled={!word.trim()} onClick={() => act('word', word)}>
+          <button className="btn-mint shrink-0" disabled={!word.trim()} onClick={send}>
             שליחה
           </button>
         </div>

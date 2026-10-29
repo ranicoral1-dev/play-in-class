@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { useRoom, GameHeader, PlayerTag, DoneRow, NextButton, RoundPoints, usePlayer, Waiting } from '../components/ui.jsx';
-import { withFinals, regular, hebrewOnly } from '../lib.js';
+import { useRoom, GameHeader, PlayerTag, DoneRow, NextButton, RoundPoints, usePlayer, Waiting, EditButton } from '../components/ui.jsx';
+import { hebrewOnly } from '../lib.js';
 
 const COLOR = {
   green: 'bg-emerald-500 text-white border-emerald-500',
@@ -33,18 +33,31 @@ export default function Wordle({ g }) {
 function SecretPhase({ g }) {
   const { act, state } = useRoom();
   const [word, setWord] = useState('');
+  const [editing, setEditing] = useState(false);
   const letters = hebrewOnly(word);
   const ids = state.players.filter((p) => p.inGame).map((p) => p.id);
-  const sent = g.submittedIds.includes(state.me);
+  const sent = g.submittedIds.includes(state.me) && !editing;
+  const lock = async () => {
+    if (letters.length !== g.wordLength) return;
+    if (!(await act('secret', word)).error) setEditing(false);
+  };
 
   return (
     <div className="animate-rise text-center">
       {sent ? (
-        <Waiting emoji="🤫">
-          המילה הסודית שלך: <span className="text-grape">{withFinals(g.mySecret)}</span>
-          <br />
-          מחכים לשאר…
-        </Waiting>
+        <>
+          <Waiting emoji="🤫">
+            המילה הסודית שלך: <span className="text-grape">{g.mySecret}</span>
+            <br />
+            מחכים לשאר…
+          </Waiting>
+          <EditButton
+            onClick={() => {
+              setWord(g.mySecret);
+              setEditing(true);
+            }}
+          />
+        </>
       ) : (
         <>
           <p className="font-display text-2xl">בחרו מילה סודית בת {g.wordLength} אותיות</p>
@@ -55,14 +68,14 @@ function SecretPhase({ g }) {
               value={word}
               autoFocus
               onChange={(e) => setWord(hebrewOnly(e.target.value).slice(0, g.wordLength))}
-              onKeyDown={(e) => e.key === 'Enter' && letters.length === g.wordLength && act('secret', word)}
+              onKeyDown={(e) => e.key === 'Enter' && lock()}
             />
             <div className="mt-2 flex justify-center gap-1.5">
               {Array.from({ length: g.wordLength }, (_, i) => (
                 <span key={i} className={`h-2 w-6 rounded-full ${i < letters.length ? 'bg-grape' : 'bg-indigo-100'}`} />
               ))}
             </div>
-            <button className="btn-mint mt-5 w-full" disabled={letters.length !== g.wordLength} onClick={() => act('secret', word)}>
+            <button className="btn-mint mt-5 w-full" disabled={letters.length !== g.wordLength} onClick={lock}>
               🔒 נעילת מילה
             </button>
           </div>
@@ -94,8 +107,7 @@ function Board({ len, max, guesses, current = '', showCurrent }) {
       <div key={r} className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${len}, minmax(0, 1fr))` }}>
         {Array.from({ length: len }, (_, i) => {
           if (guess) {
-            const ch = i === len - 1 ? withFinals(guess.letters[i]) : guess.letters[i];
-            return <Tile key={i} ch={ch} color={guess.colors[i]} delay={i * 90} />;
+            return <Tile key={i} ch={guess.letters[i]} color={guess.colors[i]} delay={i * 90} />;
           }
           if (isCurrent) return <Tile key={i} ch={current[i] || ''} pending={!!current[i]} />;
           return <Tile key={i} ch="" />;
@@ -172,7 +184,7 @@ function GuessPhase({ g }) {
                   </button>
                 )}
                 {row.map((k) => {
-                  const st = keyState[regular(k)];
+                  const st = keyState[k];
                   return (
                     <button
                       key={k}
@@ -262,7 +274,7 @@ function OwnerWord({ id, word, auto }) {
   const p = usePlayer(id);
   return (
     <div className="font-display text-lg" title={auto ? 'נבחרה אוטומטית' : ''}>
-      {p.emoji} <span className="text-grape">{withFinals(word)}</span>
+      {p.emoji} <span className="text-grape">{word}</span>
       {auto && <span className="text-xs text-indigo-300"> 🎲</span>}
     </div>
   );

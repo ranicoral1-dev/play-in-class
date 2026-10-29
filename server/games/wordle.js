@@ -1,33 +1,23 @@
 // משחק 2: נחש את המילה (וורדל תחרותי)
-import { shuffle, pick, clampInt, hebrewLetters } from '../utils.js';
+import { shuffle, pick, clampInt, hebrewLetters, rawHebrewLetters, sanitizeTimes } from '../utils.js';
 import { WORDS } from './content.js';
 
-const SECRET_SEC = 45;
-const GUESS_SEC = 120;
-const REVEAL_SEC = 15;
+const TIMES = { secret: 45, guess: 120 };
 
+// guess ו-secret מנורמלים (סופיות = רגילות). אות שנמצאת במילה במקום אחר שעוד לא נפתר
+// תמיד צהובה - גם אם היא מופיעה פעמיים בניחוש
 function colorize(guess, secret) {
-  const res = guess.map(() => 'gray');
-  const counts = {};
-  guess.forEach((ch, i) => {
-    if (ch === secret[i]) res[i] = 'green';
-    else counts[secret[i]] = (counts[secret[i]] || 0) + 1;
-  });
-  guess.forEach((ch, i) => {
-    if (res[i] !== 'green' && counts[ch] > 0) {
-      res[i] = 'yellow';
-      counts[ch]--;
-    }
-  });
-  return res;
+  const green = guess.map((ch, i) => ch === secret[i]);
+  const open = new Set(secret.filter((_, i) => !green[i]));
+  return guess.map((ch, i) => (green[i] ? 'green' : open.has(ch) ? 'yellow' : 'gray'));
 }
 
 function nextRound(room, api) {
   const g = room.game;
   g.round++;
   if (g.round > g.totalRounds) return api.endGame();
-  Object.assign(g, { phase: 'secret', secrets: {}, autoSecret: {}, boards: {}, solveOrder: [], roundPoints: {} });
-  api.setTimer(SECRET_SEC, () => startGuess(room, api));
+  Object.assign(g, { phase: 'secret', secrets: {}, secretNorm: {}, autoSecret: {}, boards: {}, solveOrder: [], roundPoints: {} });
+  api.setTimer(api.time('secret'), () => startGuess(room, api));
 }
 
 function startGuess(room, api) {
@@ -36,6 +26,7 @@ function startGuess(room, api) {
   for (const id of g.order) {
     if (!g.secrets[id]) {
       g.secrets[id] = pick(WORDS[len]);
+      g.secretNorm[id] = hebrewLetters(g.secrets[id]).join('');
       g.autoSecret[id] = true;
     }
   }
@@ -48,7 +39,7 @@ function startGuess(room, api) {
   });
   g.phase = 'guess';
   g.guessStart = Date.now();
-  api.setTimer(GUESS_SEC, () => finishRound(room, api));
+  api.setTimer(api.time('guess'), () => finishRound(room, api));
 }
 
 function boardDone(b, max) {
@@ -78,13 +69,13 @@ function finishRound(room, api) {
     }
   }
   for (const [id, pts] of Object.entries(g.roundPoints)) api.addScore(id, pts);
-  api.setTimer(REVEAL_SEC, () => nextRound(room, api));
+  api.setTimer(api.revealTime(), () => nextRound(room, api));
 }
 
 function validWord(word, len) {
   const letters = hebrewLetters(word);
   if (letters.length !== len) return { error: `המילה צריכה להיות בת ${len} אותיות בעברית` };
-  return { letters };
+  return { letters, raw: rawHebrewLetters(word) };
 }
 
 export default {
@@ -96,6 +87,7 @@ export default {
       rounds: clampInt(s.rounds, 1, 10, 3),
       wordLength: clampInt(s.wordLength, 3, 6, 5),
       maxGuesses: clampInt(s.maxGuesses, 3, 10, 6),
+      ...sanitizeTimes(s, TIMES),
     };
   },
 
@@ -117,7 +109,8 @@ export default {
     if (g.phase === 'secret' && type === 'secret') {
       const r = validWord(data, wordLength);
       if (r.error) return r.error;
-      g.secrets[pid] = r.letters.join('');
+      g.secrets[pid] = r.raw.join('');
+      g.secretNorm[pid] = r.letters.join('');
       if (api.activeIds().every((id) => g.secrets[id])) startGuess(room, api);
       return;
     }
@@ -126,10 +119,10 @@ export default {
       if (!b || boardDone(b, maxGuesses)) return 'סיימת את הניחושים לסיבוב הזה';
       const r = validWord(data, wordLength);
       if (r.error) return r.error;
-      const secret = g.secrets[b.owner].split('');
+      const secret = g.secretNorm[b.owner].split('');
       const colors = colorize(r.letters, secret);
       colors.forEach((c, i) => c === 'green' && b.greens.add(i));
-      b.guesses.push({ letters: r.letters, colors });
+      b.guesses.push({ letters: r.raw, colors });
       if (colors.every((c) => c === 'green')) {
         b.solved = true;
         b.solvedIn = Math.round((Date.now() - g.guessStart) / 1000);

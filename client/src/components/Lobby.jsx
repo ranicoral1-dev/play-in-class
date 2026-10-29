@@ -15,11 +15,18 @@ export default function Lobby() {
     const meta = GAME_META[id];
     const out = {};
     for (const s of meta.settings) out[s.key] = values[id]?.[s.key] ?? s.def(count);
+    out.timed = values[id]?.timed ?? true;
+    out.times = {};
+    for (const t of meta.timers) out.times[t.key] = values[id]?.times?.[t.key] ?? t.def;
     return out;
   }
 
   function setValue(id, key, v) {
     setValues((old) => ({ ...old, [id]: { ...old[id], [key]: v } }));
+  }
+
+  function setTime(id, key, v) {
+    setValues((old) => ({ ...old, [id]: { ...old[id], times: { ...old[id]?.times, [key]: v } } }));
   }
 
   async function start() {
@@ -108,6 +115,12 @@ export default function Lobby() {
               );
             })}
           </div>
+          <TimeSettings
+            timers={GAME_META[selected].timers}
+            settings={settingsFor(selected)}
+            onTimed={(v) => setValue(selected, 'timed', v)}
+            onTime={(key, v) => setTime(selected, key, v)}
+          />
           <button className="btn-pink mt-6 w-full py-4 text-2xl" disabled={busy} onClick={start}>
             🚀 מתחילים!
           </button>
@@ -117,13 +130,52 @@ export default function Lobby() {
   );
 }
 
-function Stepper({ value, min, max, onChange }) {
+function TimeSettings({ timers, settings, onTimed, onTime }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="mt-5 rounded-3xl border-2 border-indigo-100 p-4">
+      <label className="label">⏱️ הגבלת זמן</label>
+      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-indigo-50 p-1.5">
+        {[true, false].map((opt) => (
+          <button
+            key={String(opt)}
+            onClick={() => onTimed(opt)}
+            className={`rounded-xl py-2.5 font-display transition ${settings.timed === opt ? 'bg-white text-grape shadow' : 'text-indigo-400'}`}
+          >
+            {opt ? 'עם זמן' : 'בלי זמן'}
+          </button>
+        ))}
+      </div>
+      {settings.timed ? (
+        <>
+          <button className="mt-3 text-sm font-bold text-indigo-500 hover:text-grape" onClick={() => setOpen((o) => !o)}>
+            {open ? '▲' : '▼'} התאמת זמנים ({timers.map((t) => settings.times[t.key]).join(' / ')} שניות)
+          </button>
+          {open && (
+            <div className="mt-3 grid animate-rise gap-4 sm:grid-cols-2">
+              {timers.map((t) => (
+                <div key={t.key}>
+                  <label className="label">{t.label} (שניות)</label>
+                  <Stepper value={settings.times[t.key]} min={5} max={600} step={5} onChange={(v) => onTime(t.key, v)} />
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      ) : (
+        <p className="mt-2 text-sm text-indigo-400">כל שלב מחכה עד שכולם עונים. למארח יש כפתור דילוג אם מישהו נתקע.</p>
+      )}
+    </div>
+  );
+}
+
+function Stepper({ value, min, max, step = 1, onChange }) {
   return (
     <div className="flex items-center justify-between rounded-2xl bg-indigo-50 p-1.5">
       <button
         className="h-11 w-11 rounded-xl bg-white font-display text-2xl text-grape shadow disabled:opacity-40"
         disabled={value >= max}
-        onClick={() => onChange(Math.min(max, value + 1))}
+        onClick={() => onChange(Math.min(max, value + step))}
       >
         +
       </button>
@@ -131,7 +183,7 @@ function Stepper({ value, min, max, onChange }) {
       <button
         className="h-11 w-11 rounded-xl bg-white font-display text-2xl text-grape shadow disabled:opacity-40"
         disabled={value <= min}
-        onClick={() => onChange(Math.max(min, value - 1))}
+        onClick={() => onChange(Math.max(min, value - step))}
       >
         −
       </button>

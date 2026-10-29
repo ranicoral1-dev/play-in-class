@@ -17,6 +17,15 @@ export function clampInt(v, min, max, def) {
   return Math.max(min, Math.min(max, n));
 }
 
+// הגדרות זמן משותפות לכל המשחקים: defs = { key: ברירת מחדל בשניות }
+export function sanitizeTimes(s, defs) {
+  const times = {};
+  for (const [key, def] of Object.entries(defs)) {
+    times[key] = clampInt(s.times?.[key], 5, 600, def);
+  }
+  return { timed: s.timed !== false, times };
+}
+
 export function cleanText(s, max = 200) {
   return String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, max);
 }
@@ -37,6 +46,14 @@ export function normalize(s) {
 // אותיות עבריות בלבד (מנורמלות) כמערך
 export function hebrewLetters(s) {
   return normalize(s).replace(/[^א-ת]/g, '').split('');
+}
+
+// אותיות עבריות כפי שנכתבו (כולל אותיות סופיות) - לתצוגה
+export function rawHebrewLetters(s) {
+  return String(s ?? '')
+    .replace(/[֑-ׇ]/g, '')
+    .replace(/[^א-ת]/g, '')
+    .split('');
 }
 
 // השוואה "רכה" - יחיד/רבים, ה' הידיעה

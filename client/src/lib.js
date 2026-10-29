@@ -12,6 +12,11 @@ export const GAME_META = {
     desc: 'הקובע כותב דילמה, כולם בוחרים - ואז מנחשים מי בחר מה.',
     minPlayers: 3,
     settings: [{ key: 'rounds', label: 'מספר סיבובים', type: 'number', min: 1, max: 30, def: (n) => n }],
+    timers: [
+      { key: 'write', label: 'כתיבת הדילמה', def: 20 },
+      { key: 'vote', label: 'בחירה בין האפשרויות', def: 60 },
+      { key: 'guess', label: 'ניחוש מי בחר מה', def: 60 },
+    ],
   },
   wordle: {
     name: 'נחש את המילה',
@@ -23,6 +28,10 @@ export const GAME_META = {
       { key: 'rounds', label: 'מספר סיבובים', type: 'number', min: 1, max: 10, def: () => 3 },
       { key: 'wordLength', label: 'אורך המילה', type: 'number', min: 3, max: 6, def: () => 5 },
       { key: 'maxGuesses', label: 'מקסימום ניחושים', type: 'number', min: 3, max: 10, def: () => 6 },
+    ],
+    timers: [
+      { key: 'secret', label: 'בחירת מילה סודית', def: 45 },
+      { key: 'guess', label: 'ניחוש המילה', def: 120 },
     ],
   },
   party: {
@@ -36,6 +45,11 @@ export const GAME_META = {
       { key: 'turnsPerGuest', label: 'תורות לכל אורח', type: 'number', min: 1, max: 10, def: () => 4 },
       { key: 'maxCategoryGuesses', label: 'ניחושי קטגוריה לאורח', type: 'number', min: 1, max: 10, def: () => 2 },
     ],
+    timers: [
+      { key: 'category', label: 'המארח בוחר קטגוריה', def: 40 },
+      { key: 'turn', label: 'תור של אורח', def: 40 },
+      { key: 'review', label: 'המארח מאשר/דוחה', def: 25 },
+    ],
   },
   story: {
     name: 'סיפור בהמשכים',
@@ -47,6 +61,10 @@ export const GAME_META = {
       { key: 'rounds', label: 'כמה פעמים הסיפור עובר', type: 'number', min: 2, max: 20, def: (n) => Math.max(3, n) },
       { key: 'maxWords', label: 'מקסימום מילים בכל קטע', type: 'number', min: 3, max: 40, def: () => 12 },
     ],
+    timers: [
+      { key: 'write', label: 'כתיבת כל קטע', def: 60 },
+      { key: 'vote', label: 'קריאה ודירוג', def: 120 },
+    ],
   },
   sameword: {
     name: 'אותה מילה',
@@ -57,6 +75,10 @@ export const GAME_META = {
     settings: [
       { key: 'rounds', label: 'מספר סיבובים', type: 'number', min: 1, max: 20, def: () => 6 },
       { key: 'withCategory', label: 'קטגוריה', type: 'toggle', on: 'עם קטגוריה', off: 'בלי קטגוריה', def: () => false },
+    ],
+    timers: [
+      { key: 'category', label: 'בחירת קטגוריה', def: 25 },
+      { key: 'write', label: 'כתיבת מילה', def: 45 },
     ],
   },
 };

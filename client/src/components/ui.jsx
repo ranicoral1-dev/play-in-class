@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { socket } from '../socket.js';
 
 export const RoomContext = createContext(null);
 export const useRoom = () => useContext(RoomContext);
@@ -118,8 +119,33 @@ export function GameHeader({ title, round, totalRounds, children }) {
       <div className="flex items-center gap-3">
         {children}
         <Timer />
+        <SkipButton />
       </div>
     </div>
+  );
+}
+
+// המארח יכול לדלג על שלב (שימושי במיוחד כשמשחקים בלי זמן)
+function SkipButton() {
+  const { state } = useRoom();
+  if (state.hostId !== state.me || !state.canSkip) return null;
+  return (
+    <button
+      title="דילוג לשלב הבא"
+      className="rounded-xl bg-indigo-50 px-3 py-1.5 text-sm font-bold text-indigo-500 hover:bg-indigo-100"
+      onClick={() => confirm('לדלג לשלב הבא? מי שעוד לא ענה יפספס.') && socket.emit('host:skip')}
+    >
+      ⏭ דילוג
+    </button>
+  );
+}
+
+// כפתור "ערוך" אחרי שליחה - אפשר לשנות עד שכולם שלחו
+export function EditButton({ onClick }) {
+  return (
+    <button className="mt-2 text-sm font-bold text-indigo-500 underline-offset-4 hover:text-grape hover:underline" onClick={onClick}>
+      ✏️ שינוי התשובה
+    </button>
   );
 }
 
@@ -135,7 +161,11 @@ export function Waiting({ emoji = '⏳', children }) {
 export function NextButton({ label = 'הבא ←' }) {
   const { state, act } = useRoom();
   if (state.hostId !== state.me) {
-    return <p className="mt-4 text-center text-sm text-indigo-400">ממשיכים אוטומטית בעוד רגע…</p>;
+    return (
+      <p className="mt-4 text-center text-sm text-indigo-400">
+        {state.settings.timed ? 'ממשיכים אוטומטית בעוד רגע…' : 'מחכים שהמארח ימשיך…'}
+      </p>
+    );
   }
   return (
     <div className="mt-5 flex justify-center">

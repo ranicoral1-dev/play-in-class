@@ -1,10 +1,8 @@
 // משחק 5: אותה מילה
-import { pick, clampInt, cleanText, normalize } from '../utils.js';
+import { pick, clampInt, cleanText, normalize, sanitizeTimes } from '../utils.js';
 import { SAME_CATEGORIES } from './content.js';
 
-const CATEGORY_SEC = 25;
-const WRITE_SEC = 45;
-const REVEAL_SEC = 12;
+const TIMES = { category: 25, write: 45 };
 
 function startWrite(room, api) {
   const g = room.game;
@@ -12,7 +10,7 @@ function startWrite(room, api) {
   if (g.round > g.totalRounds) return api.endGame();
   g.phase = 'write';
   g.words = {};
-  api.setTimer(WRITE_SEC, () => reveal(room, api));
+  api.setTimer(api.time('write'), () => reveal(room, api));
 }
 
 function reveal(room, api) {
@@ -37,7 +35,7 @@ function reveal(room, api) {
   g.allMatch =
     active.length >= 2 && groupList.length === 1 && active.every((id) => groupList[0].ids.includes(id));
   g.history.push({ round: g.round, words: { ...g.words }, groups: groupList, points });
-  api.setTimer(REVEAL_SEC, () => advance(room, api));
+  api.setTimer(api.revealTime(), () => advance(room, api));
 }
 
 function advance(room, api) {
@@ -54,6 +52,7 @@ export default {
     return {
       rounds: clampInt(s.rounds, 1, 20, 6),
       withCategory: !!s.withCategory,
+      ...sanitizeTimes(s, TIMES),
     };
   },
 
@@ -66,7 +65,7 @@ export default {
     if (room.settings.withCategory) {
       g.phase = 'category';
       g.chooserId = pick(g.participants);
-      api.setTimer(CATEGORY_SEC, () => {
+      api.setTimer(api.time('category'), () => {
         g.category = pick(SAME_CATEGORIES);
         startWrite(room, api);
       });

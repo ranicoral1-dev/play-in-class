@@ -1,11 +1,8 @@
 // משחק 1: מה אתה מעדיף
-import { shuffle, pick, clampInt, cleanText } from '../utils.js';
+import { shuffle, pick, clampInt, cleanText, sanitizeTimes } from '../utils.js';
 import { WYR_FALLBACK } from './content.js';
 
-const WRITE_SEC = 20;
-const VOTE_SEC = 60;
-const GUESS_SEC = 60;
-const REVEAL_SEC = 15;
+const TIMES = { write: 20, vote: 60, guess: 60 };
 
 function nextRound(room, api) {
   const g = room.game;
@@ -35,7 +32,7 @@ function nextRound(room, api) {
     roundPoints: {},
     correct: {},
   });
-  api.setTimer(WRITE_SEC, () => {
+  api.setTimer(api.time('write'), () => {
     if (!g.options) {
       const d = g.draft;
       g.options = d && d[0] && d[1] ? d : pick(WYR_FALLBACK);
@@ -49,7 +46,7 @@ function startVote(room, api) {
   const g = room.game;
   g.phase = 'vote';
   g.voters = g.participants.filter((id) => id !== g.deciderId);
-  api.setTimer(VOTE_SEC, () => startGuess(room, api));
+  api.setTimer(api.time('vote'), () => startGuess(room, api));
 }
 
 function startGuess(room, api) {
@@ -57,7 +54,7 @@ function startGuess(room, api) {
   g.targets = g.voters.filter((id) => g.votes[id]);
   if (g.targets.length === 0) return reveal(room, api);
   g.phase = 'guess';
-  api.setTimer(GUESS_SEC, () => reveal(room, api));
+  api.setTimer(api.time('guess'), () => reveal(room, api));
 }
 
 function reveal(room, api) {
@@ -70,12 +67,12 @@ function reveal(room, api) {
       if (t !== guesser && gs[t] && gs[t] === g.votes[t]) c++;
     }
     g.correct[guesser] = c;
-    if (guesser !== g.deciderId && c > 0) {
+    if (c > 0) {
       g.roundPoints[guesser] = c;
       api.addScore(guesser, c);
     }
   }
-  api.setTimer(REVEAL_SEC, () => nextRound(room, api));
+  api.setTimer(api.revealTime(), () => nextRound(room, api));
 }
 
 function guessersPending(g, api) {
@@ -90,7 +87,7 @@ export default {
   minPlayers: 3,
 
   sanitize(s, playerCount) {
-    return { rounds: clampInt(s.rounds, 1, 30, playerCount) };
+    return { rounds: clampInt(s.rounds, 1, 30, playerCount), ...sanitizeTimes(s, TIMES) };
   },
 
   start(room, api) {

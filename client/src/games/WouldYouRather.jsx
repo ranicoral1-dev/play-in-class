@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useRoom, GameHeader, PlayerTag, Waiting, DoneRow, NextButton, RoundPoints, usePlayer } from '../components/ui.jsx';
+import { useRoom, GameHeader, PlayerTag, Waiting, DoneRow, NextButton, RoundPoints, usePlayer, EditButton } from '../components/ui.jsx';
 
 export default function WouldYouRather({ g }) {
   return (
@@ -112,7 +112,8 @@ function GuessPhase({ g }) {
   const { act, state } = useRoom();
   const targets = g.targets.filter((id) => id !== state.me);
   const [guesses, setGuesses] = useState(g.myGuesses || {});
-  const submitted = !!g.myGuesses;
+  const [editing, setEditing] = useState(false);
+  const submitted = !!g.myGuesses && !editing;
   const complete = targets.every((id) => guesses[id]);
   const allGuessers = state.players.filter((p) => p.inGame).map((p) => p.id);
 
@@ -122,7 +123,6 @@ function GuessPhase({ g }) {
       <p className="mb-3 text-center font-display text-2xl">
         {submitted ? 'הניחושים נשלחו! 🤞' : 'מי בחר מה? נחשו!'}
       </p>
-      {g.isDecider && !submitted && <p className="mb-3 text-center text-sm text-indigo-400">(הקובע מנחש בשביל הכיף - בלי נקודות הסיבוב)</p>}
       <div className="space-y-2">
         {targets.map((id) => (
           <div key={id} className="flex items-center justify-between gap-3 rounded-2xl bg-indigo-50 px-3 py-2">
@@ -150,9 +150,18 @@ function GuessPhase({ g }) {
       </div>
       {!submitted && targets.length > 0 && (
         <div className="mt-5 flex justify-center">
-          <button className="btn-mint px-10" disabled={!complete} onClick={() => act('guess', guesses)}>
+          <button
+            className="btn-mint px-10"
+            disabled={!complete}
+            onClick={async () => !(await act('guess', guesses)).error && setEditing(false)}
+          >
             שליחת ניחושים
           </button>
+        </div>
+      )}
+      {submitted && targets.length > 0 && (
+        <div className="text-center">
+          <EditButton onClick={() => setEditing(true)} />
         </div>
       )}
       <DoneRow ids={allGuessers} doneIds={g.guessedIds} label="מי כבר ניחש" />

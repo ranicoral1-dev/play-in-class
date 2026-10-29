@@ -34,14 +34,14 @@ function CategoryPhase({ g }) {
       <p className="mb-4 text-center font-display text-2xl">את/ה המארח/ת! מי מוזמן למסיבה?</p>
       <label className="label">קטגוריה סודית</label>
       <input className="input font-display" autoFocus maxLength={60} placeholder="למשל: בתים" value={category} onChange={(e) => setCategory(e.target.value)} />
-      <label className="label mt-4">דוגמאות שיתקבלו אוטומטית (לא חובה, מופרדות בפסיק)</label>
+      <label className="label mt-4">דוגמאות שכבר במסיבה (לא חובה, מופרדות בפסיק)</label>
       <textarea
         className="input min-h-[90px] text-base"
         placeholder="וילה, דירה, צריף, אוהל…"
         value={accepts}
         onChange={(e) => setAccepts(e.target.value)}
       />
-      <p className="mt-1 text-xs text-indigo-400">כל מה שלא ברשימה - יגיע אליך לאישור ידני.</p>
+      <p className="mt-1 text-xs text-indigo-400">כל האורחים יראו את הדוגמאות האלה כרמז. כל השאר יגיע אליך לאישור.</p>
       <button className="btn-primary mt-5 w-full" disabled={!category.trim()} onClick={() => act('category', { category, accepts })}>
         🎊 פותחים את הדלת!
       </button>
@@ -65,6 +65,16 @@ function EntryChip({ e }) {
   );
 }
 
+// דוגמאות שהמארח נתן מראש - כולם רואים אותן כרמז
+function HostExample({ id, text }) {
+  const p = usePlayer(id);
+  return (
+    <span className="chip animate-pop border-2 border-dashed border-emerald-300 bg-white text-emerald-900" title={`דוגמה של ${p.name}`}>
+      🎟️ {text}
+    </span>
+  );
+}
+
 function PlayPhase({ g }) {
   const { state } = useRoom();
   const inItems = g.entries.filter((e) => e.type === 'item' && e.status === 'in');
@@ -80,7 +90,13 @@ function PlayPhase({ g }) {
         <div className="rounded-3xl bg-gradient-to-br from-emerald-50 to-teal-50 p-4">
           <div className="mb-2 font-display text-lg text-emerald-700">🪩 בתוך המסיבה</div>
           <div className="flex flex-wrap gap-1.5">
-            {inItems.length ? inItems.map((e, i) => <EntryChip key={i} e={e} />) : <span className="text-sm text-emerald-600/60">עוד אף אחד…</span>}
+            {g.accepts.map((a, i) => (
+              <HostExample key={'h' + i} id={g.hostId} text={a} />
+            ))}
+            {inItems.map((e, i) => (
+              <EntryChip key={i} e={e} />
+            ))}
+            {!inItems.length && !g.accepts.length && <span className="text-sm text-emerald-600/60">עוד אף אחד…</span>}
           </div>
         </div>
         <div className="rounded-3xl bg-gradient-to-br from-rose-50 to-pink-50 p-4">

@@ -1,11 +1,8 @@
 // משחק 3: מי בא למסיבה?
-import { shuffle, pick, clampInt, cleanText, fuzzyEqual } from '../utils.js';
+import { shuffle, pick, clampInt, cleanText, fuzzyEqual, sanitizeTimes } from '../utils.js';
 import { PARTY_CATEGORIES } from './content.js';
 
-const CATEGORY_SEC = 40;
-const TURN_SEC = 40;
-const REVIEW_SEC = 25;
-const REVEAL_SEC = 15;
+const TIMES = { category: 40, turn: 40, review: 25 };
 const HOST_WIN_POINTS = 5;
 const CATEGORY_BONUS = 2;
 
@@ -41,7 +38,7 @@ function nextRound(room, api) {
     pendingIdx: null,
     roundPoints: {},
   });
-  api.setTimer(CATEGORY_SEC, () => {
+  api.setTimer(api.time('category'), () => {
     g.category = pick(PARTY_CATEGORIES);
     g.autoCategory = true;
     nextTurn(room, api);
@@ -59,7 +56,7 @@ function nextTurn(room, api) {
       g.turnIdx = idx;
       g.currentId = id;
       g.phase = 'turn';
-      api.setTimer(TURN_SEC, () => {
+      api.setTimer(api.time('turn'), () => {
         g.turnsUsed[id] = (g.turnsUsed[id] || 0) + 1;
         g.entries.push({ pid: id, type: 'skip', text: '', status: 'skip' });
         nextTurn(room, api);
@@ -83,7 +80,7 @@ function endRound(room, api, winnerId) {
     api.addScore(g.hostId, HOST_WIN_POINTS);
   }
   g.hostLeft = false;
-  api.setTimer(REVEAL_SEC, () => nextRound(room, api));
+  api.setTimer(api.revealTime(), () => nextRound(room, api));
 }
 
 function resolveEntry(room, api, entry, ok) {
@@ -106,7 +103,7 @@ function startReview(room, api, idx) {
   const g = room.game;
   g.phase = 'review';
   g.pendingIdx = idx;
-  api.setTimer(REVIEW_SEC, () => {
+  api.setTimer(api.time('review'), () => {
     resolveEntry(room, api, g.entries[idx], false);
   });
 }
@@ -120,6 +117,7 @@ export default {
       rounds: clampInt(s.rounds, 1, 20, playerCount),
       turnsPerGuest: clampInt(s.turnsPerGuest, 1, 10, 4),
       maxCategoryGuesses: clampInt(s.maxCategoryGuesses, 1, 10, 2),
+      ...sanitizeTimes(s, TIMES),
     };
   },
 
@@ -156,6 +154,12 @@ export default {
       if (type === 'category' && (g.catUsed[pid] || 0) >= room.settings.maxCategoryGuesses) {
         return 'נגמרו לך הניחושים לקטגוריה';
       }
+      if (type === 'item') {
+        const already =
+          g.accepts.some((a) => fuzzyEqual(a, text)) ||
+          g.entries.some((e) => e.type === 'item' && e.status === 'in' && fuzzyEqual(e.text, text));
+        if (already) return 'זה כבר במסיבה! תביאו משהו אחר 🙂';
+      }
       g.turnsUsed[pid] = (g.turnsUsed[pid] || 0) + 1;
       const entry = { pid, type, text, status: 'pending' };
       g.entries.push(entry);
@@ -165,8 +169,7 @@ export default {
         if (fuzzyEqual(text, g.category)) return resolveEntry(room, api, entry, true);
         return startReview(room, api, idx);
       }
-      // פריט: בדיקה אוטומטית מול רשימת המארח ופריטים שכבר נשפטו
-      if (g.accepts.some((a) => fuzzyEqual(a, text))) return resolveEntry(room, api, entry, true);
+      // פריט: מה שכבר נדחה בעבר נדחה אוטומטית, כל השאר - לאישור המארח
       const prev = g.entries.find((e, i) => i !== idx && e.type === 'item' && e.status !== 'pending' && fuzzyEqual(e.text, text));
       if (prev) return resolveEntry(room, api, entry, prev.status === 'in');
       return startReview(room, api, idx);
@@ -202,7 +205,7 @@ export default {
       currentId: g.currentId,
       category: showCategory ? g.category : null,
       autoCategory: g.autoCategory,
-      accepts: isHostRole ? g.accepts : [],
+      accepts: g.accepts,
       entries: g.entries.map((e) => ({ pid: e.pid, type: e.type, text: e.text, status: e.status })),
       pendingIdx: g.pendingIdx,
       turnsUsed: g.turnsUsed,

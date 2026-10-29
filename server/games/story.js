@@ -1,8 +1,7 @@
 // משחק 4: סיפור בהמשכים
-import { shuffle, clampInt, cleanText } from '../utils.js';
+import { shuffle, clampInt, cleanText, sanitizeTimes } from '../utils.js';
 
-const WRITE_SEC = 60;
-const VOTE_SEC = 120;
+const TIMES = { write: 60, vote: 120 };
 const RESULTS_SEC = 30;
 
 function limitWords(text, max) {
@@ -41,12 +40,16 @@ function startRound(room, api) {
   g.round++;
   if (g.round > g.totalRounds) return startVote(room, api);
   g.phase = 'write';
-  g.submitted = {};
+  g.texts = {};
   g.drafts = {};
-  api.setTimer(WRITE_SEC, () => {
-    for (const id of g.order) if (!g.submitted[id]) commit(room, id, g.drafts[id] || '');
-    startRound(room, api);
-  });
+  api.setTimer(api.time('write'), () => endWriting(room, api));
+}
+
+// סוף סבב כתיבה: כל הקטעים נכנסים לסיפורים בבת אחת (עד אז אפשר לערוך)
+function endWriting(room, api) {
+  const g = room.game;
+  for (const id of g.order) commit(room, id, g.texts[id] ?? g.drafts[id] ?? '');
+  startRound(room, api);
 }
 
 function commit(room, pid, text) {
@@ -56,7 +59,6 @@ function commit(room, pid, text) {
   let full = prompt ? `${prompt} ${body}`.trim() : body;
   if (!full) full = '...';
   g.chains[chainIndexFor(g, pid)].segments.push({ pid, text: full, body, prompt });
-  g.submitted[pid] = true;
 }
 
 function startVote(room, api) {
@@ -65,7 +67,7 @@ function startVote(room, api) {
   g.round = g.totalRounds;
   g.ratings = {};
   g.displayOrder = shuffle(g.chains.map((_, i) => i));
-  api.setTimer(VOTE_SEC, () => showResults(room, api));
+  api.setTimer(api.time('vote'), () => showResults(room, api));
 }
 
 function showResults(room, api) {
@@ -87,7 +89,7 @@ function showResults(room, api) {
     api.addScore(s.ownerId, s.points);
   });
   g.results = stats;
-  api.setTimer(RESULTS_SEC, () => api.endGame());
+  api.setTimer(room.settings.timed ? RESULTS_SEC : null, () => api.endGame());
 }
 
 function votersPending(room, api) {
@@ -103,6 +105,7 @@ export default {
     return {
       rounds: clampInt(s.rounds, 2, 20, Math.max(3, playerCount)),
       maxWords: clampInt(s.maxWords, 3, 40, 12),
+      ...sanitizeTimes(s, TIMES),
     };
   },
 
@@ -122,7 +125,6 @@ export default {
       return api.endGame();
     }
     if (g.phase === 'write') {
-      if (g.submitted[pid]) return type === 'draft' ? undefined : 'כבר שלחת, מחכים לשאר 😊';
       if (type === 'draft') {
         g.drafts[pid] = cleanText(data, 400);
         return;
@@ -130,11 +132,8 @@ export default {
       if (type === 'submit') {
         const body = limitWords(data, room.settings.maxWords);
         if (!body) return 'צריך לכתוב משהו';
-        commit(room, pid, body);
-        if (api.activeIds().every((id) => g.submitted[id])) {
-          for (const id of g.order) if (!g.submitted[id]) commit(room, id, g.drafts[id] || '');
-          startRound(room, api);
-        }
+        g.texts[pid] = body;
+        if (api.activeIds().every((id) => g.texts[id] != null)) endWriting(room, api);
         return;
       }
     }
@@ -154,9 +153,8 @@ export default {
 
   check(room, api) {
     const g = room.game;
-    if (g.phase === 'write' && api.activeIds().every((id) => g.submitted[id])) {
-      for (const id of g.order) if (!g.submitted[id]) commit(room, id, g.drafts[id] || '');
-      startRound(room, api);
+    if (g.phase === 'write' && api.activeIds().every((id) => g.texts[id] != null)) {
+      endWriting(room, api);
     } else if (g.phase === 'vote' && votersPending(room, api).length === 0) {
       showResults(room, api);
     }
@@ -172,8 +170,8 @@ export default {
     };
     if (g.phase === 'write') {
       v.prompt = promptFor(g, pid);
-      v.submitted = !!g.submitted[pid];
-      v.submittedIds = Object.keys(g.submitted);
+      v.myText = g.texts[pid] ?? null;
+      v.submittedIds = Object.keys(g.texts);
     }
     if (g.phase === 'vote' || g.phase === 'results') {
       const mine = g.order.indexOf(pid);

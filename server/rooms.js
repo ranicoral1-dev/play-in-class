@@ -5,6 +5,7 @@ const rooms = new Map();
 let IO = null;
 const MAX_PLAYERS = 24;
 const EMPTY_ROOM_TTL = 30 * 60 * 1000;
+const REVEAL_SEC = 15;
 
 function genCode() {
   let code;
@@ -21,24 +22,39 @@ function getPlayer(room, pid) {
 // ---------- API שניתן למודולי המשחקים ----------
 function makeApi(room) {
   const api = {
+    // sec = null: שלב בלי הגבלת זמן. הפעולה נשמרת כדי שהמארח יוכל לדלג
     setTimer(sec, cb) {
-      clearTimeout(room.timer);
+      api.clearTimer();
+      room.timerCb = cb;
+      if (!sec) return;
       room.deadline = Date.now() + sec * 1000;
       room.timer = setTimeout(() => {
-        room.timer = null;
-        room.deadline = null;
-        try {
-          cb();
-        } catch (e) {
-          console.error('timer error', e);
-        }
+        api.runTimer();
         broadcast(room);
       }, sec * 1000);
+    },
+    runTimer() {
+      const cb = room.timerCb;
+      api.clearTimer();
+      if (!cb) return;
+      try {
+        cb();
+      } catch (e) {
+        console.error('timer error', e);
+      }
     },
     clearTimer() {
       clearTimeout(room.timer);
       room.timer = null;
       room.deadline = null;
+      room.timerCb = null;
+    },
+    // זמן השלב לפי הגדרות המארח, או null כשמשחקים בלי זמן
+    time(key) {
+      return room.settings.timed ? room.settings.times[key] : null;
+    },
+    revealTime() {
+      return room.settings.timed ? REVEAL_SEC : null;
     },
     isConnected(pid) {
       return !!getPlayer(room, pid)?.connected;
@@ -86,6 +102,7 @@ function viewFor(room, pid) {
       inGame: room.status !== 'lobby' && !!room.game?.participants.includes(p.id),
     })),
     timeLeft: room.deadline ? Math.max(0, room.deadline - Date.now()) : null,
+    canSkip: !!room.timerCb,
     game: room.status === 'game' && game ? game.view(room, pid, apiFor(room)) : null,
   };
 }
@@ -235,6 +252,13 @@ export function registerSocket(io, socket) {
     const { room, pid, api } = ctx();
     if (!room || room.hostId !== pid || room.status !== 'game') return;
     api.endGame();
+    broadcast(room);
+  });
+
+  socket.on('host:skip', () => {
+    const { room, pid, api } = ctx();
+    if (!room || room.hostId !== pid || room.status !== 'game') return;
+    api.runTimer();
     broadcast(room);
   });
 
