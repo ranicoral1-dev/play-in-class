@@ -1,7 +1,37 @@
-import { useState } from 'react';
-import { emit } from '../socket.js';
+import { useEffect, useRef, useState } from 'react';
+import { emit, socket } from '../socket.js';
 import { GAME_META, GENRES } from '../lib.js';
 import { useRoom, PlayerTag } from './ui.jsx';
+
+// מה שחקן ביקש, בשביל ההודעה למארח
+function wishText(gameId, key, value) {
+  const meta = GAME_META[gameId];
+  if (!meta) return '';
+  if (key == null) return `${meta.emoji} ${meta.name}`;
+  if (key === 'timed') return `${meta.name}: ${value ? 'עם זמן' : 'בלי זמן'}`;
+  const s = meta.settings.find((x) => x.key === key);
+  if (!s) return meta.name;
+  const label = s.type === 'toggle' ? (value ? s.on : s.off) : s.type === 'select' ? s.options.find((o) => o.value === value)?.label : value;
+  return `${meta.name}: ${s.label} - ${label}`;
+}
+
+// אווטרים קטנים של מי שביקש
+function Fans({ ids, className = '' }) {
+  const { state } = useRoom();
+  if (!ids.length) return null;
+  return (
+    <span className={`inline-flex flex-wrap items-center gap-0.5 ${className}`}>
+      {ids.map((id) => {
+        const p = state.players.find((x) => x.id === id);
+        return (
+          <span key={id} title={p?.name} className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-white text-sm shadow">
+            {p?.emoji || '❔'}
+          </span>
+        );
+      })}
+    </span>
+  );
+}
 
 export default function Lobby() {
   const { state, showToast } = useRoom();
@@ -11,6 +41,14 @@ export default function Lobby() {
   const [values, setValues] = useState({});
   const [busy, setBusy] = useState(false);
   const [genre, setGenre] = useState(null);
+  const wishes = state.wishes || {};
+  const myWish = wishes[state.me];
+  // המארח בוחר בעצמו; כל השאר רואים את מה שהמארח בוחר עכשיו
+  const shownId = isHost ? selected : state.draft?.gameId || null;
+  const gameFans = (id) => Object.keys(wishes).filter((pid) => wishes[pid].gameId === id);
+  const settingFans = (key, v) => Object.keys(wishes).filter((pid) => wishes[pid].gameId === shownId && wishes[pid].picks[key] === v);
+  const playersRef = useRef(state.players);
+  playersRef.current = state.players;
 
   function settingsFor(id) {
     const meta = GAME_META[id];
@@ -29,6 +67,34 @@ export default function Lobby() {
   function setTime(id, key, v) {
     setValues((old) => ({ ...old, [id]: { ...old[id], times: { ...old[id]?.times, [key]: v } } }));
   }
+
+  // המארח משתף את ההגדרות (בלי טקסט חופשי) כדי שכולם יראו מה הוא בוחר
+  const draftJson = isHost && selected ? JSON.stringify(publicPart(selected, settingsFor(selected))) : null;
+  useEffect(() => {
+    if (draftJson) emit('host:draft', { gameId: selected, settings: JSON.parse(draftJson) });
+  }, [draftJson]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!isHost) return;
+    const onWish = ({ pid, gameId, key, value }) => {
+      const p = playersRef.current.find((x) => x.id === pid);
+      if (key != null && value == null) return;
+      showToast(`${p?.emoji || ''} ${p?.name || '?'} רוצה: ${wishText(gameId, key, value)}`);
+    };
+    socket.on('wish', onWish);
+    return () => socket.off('wish', onWish);
+  }, [isHost, showToast]);
+
+  const wish = (gameId, key, value) => emit('wish', { gameId, key, value });
+
+  // ערך שנבחר: המארח משנה, שחקן אחר מבקש
+  function choose(key, v) {
+    if (isHost) setValue(selected, key, v);
+    else wish(shownId, key, v);
+  }
+
+  // מה שמוצג בהגדרות: אצל המארח - שלו; אצל השאר - של המארח
+  const shown = isHost ? (selected ? settingsFor(selected) : null) : state.draft?.settings || null;
 
   async function start() {
     setBusy(true);
@@ -53,6 +119,7 @@ export default function Lobby() {
               <p className="mt-1 flex items-center gap-1 text-indigo-500">
                 המארח: <PlayerTag id={state.hostId} />
               </p>
+              <p className="mt-1 text-sm text-indigo-400">רוצים משחק או הגדרה מסוימת? לחצו עליהם והמארח יראה 🙋</p>
             </div>
           </div>
         )}
@@ -74,18 +141,23 @@ export default function Lobby() {
         {Object.entries(GAME_META)
           .filter(([, g]) => !genre || g.genres.includes(genre))
           .map(([id, g], i) => {
-          const active = selected === id;
+          const active = shownId === id;
           const enough = count >= g.minPlayers;
+          const fans = gameFans(id);
           return (
             <button
               key={id}
-              disabled={!isHost}
-              onClick={() => setSelected(id)}
+              onClick={() => (isHost ? setSelected(id) : wish(id, null))}
               style={{ animationDelay: `${i * 0.05}s` }}
               className={`group relative overflow-hidden rounded-3xl bg-gradient-to-br ${g.color} p-5 text-right text-white shadow-lg transition-all animate-rise
-                ${isHost ? 'hover:-translate-y-1 hover:shadow-2xl' : 'cursor-default'}
-                ${active ? 'ring-4 ring-sun ring-offset-4 ring-offset-violet-900' : ''}`}
+                hover:-translate-y-1 hover:shadow-2xl
+                ${active ? 'ring-4 ring-sun ring-offset-4 ring-offset-violet-900' : !isHost && myWish?.gameId === id ? 'ring-4 ring-white/70 ring-offset-2 ring-offset-violet-900' : ''}`}
             >
+              {fans.length > 0 && (
+                <span className="absolute left-3 top-3 flex items-center gap-1 rounded-full bg-black/25 px-2 py-1 text-xs font-bold">
+                  🙋 <Fans ids={fans} />
+                </span>
+              )}
               <span className="absolute -left-3 -top-3 text-7xl opacity-20 transition group-hover:scale-110">{g.emoji}</span>
               <div className="text-4xl">{g.emoji}</div>
               <div className="mt-2 font-display text-2xl">{g.name}</div>
@@ -105,14 +177,17 @@ export default function Lobby() {
         })}
       </div>
 
-      {isHost && selected && (
+      {shownId && shown && (
         <div className="card animate-rise">
           <h3 className="font-display text-2xl">
-            {GAME_META[selected].emoji} הגדרות: {GAME_META[selected].name}
+            {GAME_META[shownId].emoji} הגדרות: {GAME_META[shownId].name}
           </h3>
+          {!isHost && <p className="mt-1 text-sm text-indigo-400">👀 ככה המארח מגדיר עכשיו. לחצו על מה שאתם רוצים והמארח יראה 🙋</p>}
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            {GAME_META[selected].settings.map((s) => {
-              const v = settingsFor(selected)[s.key];
+            {GAME_META[shownId].settings.map((s) => {
+              if (s.type === 'textarea' && !isHost) return null;
+              const v = shown[s.key];
+              const mine = !isHost && myWish?.gameId === shownId ? myWish.picks[s.key] : undefined;
               return (
                 <div key={s.key} className={s.type === 'textarea' ? 'sm:col-span-2' : ''}>
                   <label className="label">{s.label}</label>
@@ -130,52 +205,89 @@ export default function Lobby() {
                       {s.hint && <p className="mt-1 text-xs text-indigo-400">{s.hint}</p>}
                     </>
                   ) : s.type === 'number' ? (
-                    <Stepper value={v} min={s.min} max={s.max} step={s.step} onChange={(x) => setValue(selected, s.key, x)} />
-                  ) : s.type === 'select' ? (
-                    <div className="grid grid-cols-2 gap-2 rounded-2xl bg-indigo-50 p-1.5 sm:grid-cols-3">
-                      {s.options.map((opt) => (
-                        <button
-                          key={opt.value}
-                          onClick={() => setValue(selected, s.key, opt.value)}
-                          className={`rounded-xl py-2.5 font-display transition ${
-                            v === opt.value ? 'bg-white text-grape shadow' : 'text-indigo-400'
-                          }`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
+                    <>
+                      <Stepper value={mine ?? v} min={s.min} max={s.max} step={s.step} onChange={(x) => choose(s.key, x)} />
+                      {mine != null && mine !== v && <p className="mt-1 text-xs text-indigo-400">🙋 ביקשת {mine} · אצל המארח: {v}</p>}
+                      <NumberWishes key={s.key} fans={Object.keys(wishes).filter((pid) => wishes[pid].gameId === shownId && wishes[pid].picks[s.key] != null)} wishes={wishes} skey={s.key} current={v} onApply={isHost ? (x) => setValue(selected, s.key, x) : null} />
+                    </>
                   ) : (
-                    <div className="grid grid-cols-2 gap-2 rounded-2xl bg-indigo-50 p-1.5">
-                      {[true, false].map((opt) => (
-                        <button
-                          key={String(opt)}
-                          onClick={() => setValue(selected, s.key, opt)}
-                          className={`rounded-xl py-2.5 font-display transition ${
-                            v === opt ? 'bg-white text-grape shadow' : 'text-indigo-400'
-                          }`}
-                        >
-                          {opt ? s.on : s.off}
-                        </button>
-                      ))}
-                    </div>
+                    <Options
+                      options={s.type === 'select' ? s.options : [{ value: true, label: s.on }, { value: false, label: s.off }]}
+                      cols={s.type === 'select' ? 'grid-cols-2 sm:grid-cols-3' : 'grid-cols-2'}
+                      value={v}
+                      mine={mine}
+                      fans={(x) => settingFans(s.key, x)}
+                      onPick={(x) => choose(s.key, x)}
+                    />
                   )}
                 </div>
               );
             })}
           </div>
-          {GAME_META[selected].note && <p className="mt-3 text-sm text-indigo-500">{GAME_META[selected].note}</p>}
+          {GAME_META[shownId].note && <p className="mt-3 text-sm text-indigo-500">{GAME_META[shownId].note}</p>}
           <TimeSettings
-            timers={GAME_META[selected].timers}
-            settings={settingsFor(selected)}
-            onTimed={(v) => setValue(selected, 'timed', v)}
-            onTime={(key, v) => setTime(selected, key, v)}
+            timers={GAME_META[shownId].timers}
+            settings={shown}
+            mine={!isHost && myWish?.gameId === shownId ? myWish.picks.timed : undefined}
+            fans={(x) => settingFans('timed', x)}
+            onTimed={(v) => choose('timed', v)}
+            onTime={isHost ? (key, v) => setTime(selected, key, v) : null}
           />
-          <button className="btn-pink mt-6 w-full py-4 text-2xl" disabled={busy} onClick={start}>
-            🚀 מתחילים!
-          </button>
+          {isHost && (
+            <button className="btn-pink mt-6 w-full py-4 text-2xl" disabled={busy} onClick={start}>
+              🚀 מתחילים!
+            </button>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+// מה שנשלח לשאר השחקנים: בלי טקסט חופשי (מילים ושאלות של המארח נשארות סודיות)
+function publicPart(id, settings) {
+  const out = { ...settings };
+  for (const s of GAME_META[id].settings) if (s.type === 'textarea') delete out[s.key];
+  return out;
+}
+
+// כפתורי בחירה (כן/לא או רשימה), עם מי שביקש כל אפשרות
+function Options({ options, cols, value, mine, fans, onPick }) {
+  return (
+    <div className={`grid gap-2 rounded-2xl bg-indigo-50 p-1.5 ${cols}`}>
+      {options.map((opt) => {
+        const f = fans(opt.value);
+        return (
+          <button
+            key={String(opt.value)}
+            onClick={() => onPick(opt.value)}
+            className={`relative rounded-xl py-2.5 font-display transition ${value === opt.value ? 'bg-white text-grape shadow' : 'text-indigo-400'} ${
+              mine === opt.value ? 'outline-dashed outline-2 outline-pink-400' : ''
+            }`}
+          >
+            {opt.label}
+            {f.length > 0 && <Fans ids={f} className="absolute -top-2 left-1" />}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// בקשות למספר: המארח יכול ללחוץ כדי לקבל
+function NumberWishes({ fans, wishes, skey, current, onApply }) {
+  const list = fans.filter((pid) => wishes[pid].picks[skey] !== current);
+  if (!list.length) return null;
+  return (
+    <div className="mt-1.5 flex flex-wrap gap-1">
+      {list.map((pid) => {
+        const x = wishes[pid].picks[skey];
+        return (
+          <button key={pid} disabled={!onApply} onClick={() => onApply?.(x)} className="chip gap-1 bg-pink-50 text-pink-700 enabled:hover:bg-pink-100">
+            <Fans ids={[pid]} /> רוצה {x}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -197,26 +309,30 @@ function saveText(id, key, v) {
   }
 }
 
-function TimeSettings({ timers, settings, onTimed, onTime }) {
+function TimeSettings({ timers, settings, mine, fans, onTimed, onTime }) {
   const [open, setOpen] = useState(false);
+  const summary = `(${timers.map((t) => settings.times?.[t.key] ?? t.def).join(' / ')} שניות)`;
   return (
     <div className="mt-5 rounded-3xl border-2 border-indigo-100 p-4">
       <label className="label">⏱️ הגבלת זמן</label>
-      <div className="grid grid-cols-2 gap-2 rounded-2xl bg-indigo-50 p-1.5">
-        {[true, false].map((opt) => (
-          <button
-            key={String(opt)}
-            onClick={() => onTimed(opt)}
-            className={`rounded-xl py-2.5 font-display transition ${settings.timed === opt ? 'bg-white text-grape shadow' : 'text-indigo-400'}`}
-          >
-            {opt ? 'עם זמן' : 'בלי זמן'}
-          </button>
-        ))}
-      </div>
+      <Options
+        options={[
+          { value: true, label: 'עם זמן' },
+          { value: false, label: 'בלי זמן' },
+        ]}
+        cols="grid-cols-2"
+        value={settings.timed}
+        mine={mine}
+        fans={fans}
+        onPick={onTimed}
+      />
       {settings.timed ? (
+        !onTime ? (
+          <p className="mt-3 text-sm font-bold text-indigo-500">זמנים {summary}</p>
+        ) : (
         <>
           <button className="mt-3 text-sm font-bold text-indigo-500 hover:text-grape" onClick={() => setOpen((o) => !o)}>
-            {open ? '▲' : '▼'} התאמת זמנים ({timers.map((t) => settings.times[t.key]).join(' / ')} שניות)
+            {open ? '▲' : '▼'} התאמת זמנים {summary}
           </button>
           {open && (
             <div className="mt-3 grid animate-rise gap-4 sm:grid-cols-2">
@@ -229,6 +345,7 @@ function TimeSettings({ timers, settings, onTimed, onTime }) {
             </div>
           )}
         </>
+        )
       ) : (
         <p className="mt-2 text-sm text-indigo-400">כל שלב מחכה עד שכולם עונים. למארח יש כפתור דילוג אם מישהו נתקע.</p>
       )}

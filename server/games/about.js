@@ -1,8 +1,9 @@
 // משחק: מה חושבים עליך - כולם עונים על שאלה על שחקן אחד, והוא חושף רק את הכותב של תשובה אחת
+// במצב ״שחקן כותב״: בכל סיבוב שחקן אחר כותב את השאלה, ולא עונה בסיבוב הזה (רק צופה)
 import { shuffle, clampInt, cleanText, sanitizeTimes } from '../utils.js';
 import { ABOUT_QUESTIONS } from './content.js';
 
-const TIMES = { write: 60, pick: 45 };
+const TIMES = { ask: 45, write: 60, pick: 45 };
 const POINTS = 2; // לכותב של התשובה שנבחרה
 
 // שורה לכל שאלה; {name} מוחלף בשם. שאלה בלי {name} מקבלת את השם בסוף
@@ -20,7 +21,7 @@ function nextQuestion(g) {
   return g.deck.pop();
 }
 
-const writers = (room, api) => api.activeIds().filter((id) => id !== room.game.subject);
+const writers = (room, api) => api.activeIds().filter((id) => id !== room.game.subject && id !== room.game.asker);
 const randomIdx = (g) => Math.floor(Math.random() * g.list.length);
 
 function nextRound(room, api) {
@@ -34,7 +35,28 @@ function nextRound(room, api) {
     if (api.isConnected(id)) subject = id;
   }
   if (!subject || api.activeIds().length < 2) return api.endGame();
-  Object.assign(g, { phase: 'write', subject, template: nextQuestion(g), answers: {}, drafts: {}, list: [], picked: null, randomPick: false });
+  // הכותב: הבא בתור אחרי מי שבמרכז. רק כשנשארים לפחות שניים שעונים
+  let asker = null;
+  if (room.settings.asker && api.activeIds().length >= 4) {
+    const start = g.order.indexOf(subject);
+    for (let k = 1; k < n && !asker; k++) {
+      const id = g.order[(start + k) % n];
+      if (api.isConnected(id)) asker = id;
+    }
+  }
+  Object.assign(g, { subject, asker, template: null, autoQuestion: false, answers: {}, drafts: {}, list: [], picked: null, randomPick: false });
+  if (asker) {
+    g.phase = 'ask';
+    api.setTimer(api.time('ask'), () => toWrite(room, api, null));
+  } else toWrite(room, api, null);
+}
+
+// בלי שאלה מהכותב (אין כותב, נגמר הזמן או שהתנתק) - שאלה של המשחק
+function toWrite(room, api, question) {
+  const g = room.game;
+  g.autoQuestion = !question && !!g.asker;
+  g.template = question || nextQuestion(g);
+  g.phase = 'write';
   api.setTimer(api.time('write'), () => toPick(room, api));
 }
 
@@ -67,6 +89,7 @@ export default {
   sanitize(s) {
     return {
       rounds: clampInt(s.rounds, 1, 10, 1),
+      asker: s.asker !== false,
       builtin: s.builtin !== false,
       // נשאר סודי (ראו publicSettings). ב״משחקים שוב״ הוא לא מגיע - ואז נשארות השאלות מהפעם הקודמת
       customWords: s.customWords == null ? null : String(s.customWords).slice(0, 8000),
@@ -92,7 +115,12 @@ export default {
       if (g.phase !== 'reveal' || !(api.isHost(pid) || pid === g.subject)) return;
       return nextRound(room, api);
     }
-    if (g.phase === 'write' && pid !== g.subject) {
+    if (g.phase === 'ask' && type === 'ask' && pid === g.asker) {
+      const text = cleanText(data, 140);
+      if (!text) return 'צריך לכתוב שאלה';
+      return toWrite(room, api, text);
+    }
+    if (g.phase === 'write' && pid !== g.subject && pid !== g.asker) {
       if (type === 'draft') {
         g.drafts[pid] = cleanText(data, 120);
         return;
@@ -114,7 +142,8 @@ export default {
 
   check(room, api) {
     const g = room.game;
-    if (g.phase === 'write' && writers(room, api).every((id) => g.answers[id])) toPick(room, api);
+    if (g.phase === 'ask' && !api.isConnected(g.asker)) toWrite(room, api, null);
+    else if (g.phase === 'write' && writers(room, api).every((id) => g.answers[id])) toPick(room, api);
     else if (g.phase === 'pick' && !api.isConnected(g.subject)) reveal(room, api, randomIdx(g), true);
   },
 
@@ -128,9 +157,13 @@ export default {
       totalRounds: g.totalRounds,
       subject: g.subject,
       amSubject,
+      asker: g.asker,
+      amAsker: pid === g.asker,
+      autoQuestion: g.autoQuestion,
       // מי שהשאלה עליו מגלה אותה רק כשהתשובות נחשפות
-      question: amSubject && g.phase === 'write' ? null : g.template.replace(/\{name\}/g, name),
+      question: g.phase === 'ask' || (amSubject && g.phase === 'write') ? null : g.template.replace(/\{name\}/g, name),
     };
+    if (g.phase === 'ask') return v;
     if (g.phase === 'write') {
       v.myAnswer = g.answers[pid] ?? null;
       v.writerIds = writers(room, api);

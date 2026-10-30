@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { success, fail } from '../sound.js';
-import { useRoom, GameHeader, PlayerTag, Waiting, usePlayer } from '../components/ui.jsx';
+import { useRoom, GameHeader, PlayerTag, Waiting, usePlayer, AskForm } from '../components/ui.jsx';
 
 const FLIP_MS = 2800;
 const SIDES = { heads: { label: 'עץ', icon: '🌳' }, tails: { label: 'פלי', icon: '1' } };
@@ -8,7 +8,14 @@ const SIDES = { heads: { label: 'עץ', icon: '🌳' }, tails: { label: 'פלי'
 export default function Coin({ g }) {
   return (
     <div className="card">
-      <GameHeader title="🪙 מטבע הסודות" round={g.round} totalRounds={g.totalRounds} />
+      <GameHeader title="🪙 מטבע הסודות" round={g.round} totalRounds={g.totalRounds}>
+        {g.asker && (
+          <span className="chip bg-amber-100 text-amber-800">
+            ✍️ כותב/ת השאלה: <PlayerTag id={g.asker} />
+          </span>
+        )}
+      </GameHeader>
+      {g.phase === 'ask' && <AskPhase g={g} />}
       {g.phase === 'choose' && <ChoosePhase g={g} />}
       {g.phase === 'call' && <CallPhase g={g} />}
       {g.phase === 'flip' && <FlipPhase g={g} key={g.round} />}
@@ -26,15 +33,36 @@ function SecretQuestion({ question, label = '🤫 רק אתם רואים את ה
   );
 }
 
+function AskPhase({ g }) {
+  const { state } = useRoom();
+  const chooser = usePlayer(g.chooser);
+  const asker = usePlayer(g.asker);
+  if (g.asker === state.me) {
+    return <AskForm title={`כתבו שאלה סודית ל${chooser.name}`} placeholder="מי הכי סביר ש…?" />;
+  }
+  return <Waiting emoji="✍️">{asker.name} כותב/ת שאלה סודית ל{chooser.name}…</Waiting>;
+}
+
+function AutoNote({ g }) {
+  if (!g.autoQuestion) return null;
+  return <p className="mb-3 text-center text-sm text-indigo-400">⏰ לא נכתבה שאלה בזמן - השאלה מהמשחק</p>;
+}
+
 function ChoosePhase({ g }) {
   const { state, act } = useRoom();
   const chooser = usePlayer(g.chooser);
   if (g.chooser !== state.me) {
-    return <Waiting emoji="🤫">{chooser.name} קורא/ת שאלה סודית ובוחר/ת מישהו…</Waiting>;
+    return (
+      <>
+        {g.asker === state.me && <SecretQuestion question={g.question} label="✍️ השאלה שכתבת" />}
+        <Waiting emoji="🤫">{chooser.name} קורא/ת שאלה סודית ובוחר/ת מישהו…</Waiting>
+      </>
+    );
   }
-  const ids = state.players.filter((p) => p.inGame).map((p) => p.id);
+  const ids = state.players.filter((p) => p.inGame && p.id !== g.asker).map((p) => p.id);
   return (
     <div className="animate-rise">
+      <AutoNote g={g} />
       <SecretQuestion question={g.question} />
       <p className="mb-3 text-center font-display text-xl">מי התשובה? (אפשר גם את עצמך 😉)</p>
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
@@ -79,7 +107,10 @@ function CallPhase({ g }) {
           </div>
         </>
       ) : (
-        <Waiting emoji="🪙">מחכים שיבחר/תבחר עץ או פלי…</Waiting>
+        <>
+          {g.asker === state.me && <SecretQuestion question={g.question} label="✍️ השאלה שכתבת" />}
+          <Waiting emoji="🪙">מחכים שיבחר/תבחר עץ או פלי…</Waiting>
+        </>
       )}
     </div>
   );
@@ -141,7 +172,7 @@ function FlipPhase({ g }) {
             יצא {SIDES[g.coin].label}! {g.won ? '🔒 השאלה נשארת סודית' : '😱 השאלה נחשפת:'}
           </div>
           {!g.won && <SecretQuestion question={g.question} label="השאלה הייתה" />}
-          {g.won && mine && <SecretQuestion question={g.question} label="🤫 רק אתם יודעים" />}
+          {g.won && (mine || g.asker === state.me) && <SecretQuestion question={g.question} label="🤫 רק אתם יודעים" />}
           {(state.hostId === state.me || mine) && (
             <button className="btn-primary mt-4" onClick={() => act('next')}>
               לתור הבא ←
@@ -164,6 +195,7 @@ function History({ g }) {
             <PlayerTag id={h.chooser} size="sm" />
             <span className="text-indigo-400">←</span>
             <PlayerTag id={h.target} size="sm" />
+            {h.asker && <span className="text-xs text-indigo-400">✍️ <PlayerTag id={h.asker} size="sm" /></span>}
             <span className="flex-1 text-left font-semibold">{h.won ? '🔒 סוד' : `😱 ${h.question}`}</span>
           </li>
         ))}

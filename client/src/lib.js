@@ -258,6 +258,7 @@ export const GAME_META = {
     minPlayers: 2,
     settings: [
       { key: 'rounds', label: 'כמה פעמים כל אחד בוחר', type: 'number', min: 1, max: 10, def: () => 2 },
+      { key: 'asker', label: 'מי כותב את השאלה', type: 'toggle', on: '✍️ שחקן כותב', off: '🎲 המשחק', def: () => true },
       { key: 'builtin', label: 'אילו שאלות', type: 'toggle', on: 'שלנו + של המשחק', off: 'רק שלנו', def: () => true },
       {
         key: 'customWords',
@@ -268,8 +269,9 @@ export const GAME_META = {
         def: () => '',
       },
     ],
-    note: 'אפשר לבחור גם בעצמך. +1 למי שנבחר בכל פעם.',
+    note: 'אפשר לבחור גם בעצמך. +1 למי שנבחר בכל פעם. ״שחקן כותב״: בכל תור שחקן אחר כותב את השאלה ורק צופה בתור הזה (מ-3 שחקנים; אם לא כתב בזמן - שאלה של המשחק).',
     timers: [
+      { key: 'ask', label: 'כתיבת השאלה', def: 45 },
       { key: 'choose', label: 'בחירת שחקן', def: 30 },
       { key: 'call', label: 'בחירת עץ או פלי', def: 15 },
     ],
@@ -283,6 +285,7 @@ export const GAME_META = {
     minPlayers: 3,
     settings: [
       { key: 'rounds', label: 'כמה פעמים כל אחד במרכז', type: 'number', min: 1, max: 10, def: () => 1 },
+      { key: 'asker', label: 'מי כותב את השאלה', type: 'toggle', on: '✍️ שחקן כותב', off: '🎲 המשחק', def: () => true },
       { key: 'builtin', label: 'אילו שאלות', type: 'toggle', on: 'שלנו + של המשחק', off: 'רק שלנו', def: () => true },
       {
         key: 'customWords',
@@ -293,8 +296,9 @@ export const GAME_META = {
         def: () => '',
       },
     ],
-    note: 'מי שהשאלה עליו רואה אותה רק כשהתשובות נחשפות. +2 לכותב של התשובה שנבחרה.',
+    note: 'מי שהשאלה עליו רואה אותה רק כשהתשובות נחשפות. +2 לכותב של התשובה שנבחרה. ״שחקן כותב״: בכל סיבוב שחקן אחר כותב את השאלה ורק צופה בסיבוב הזה (מ-4 שחקנים; אם לא כתב בזמן - שאלה של המשחק).',
     timers: [
+      { key: 'ask', label: 'כתיבת השאלה', def: 45 },
       { key: 'write', label: 'כתיבת תשובה', def: 60 },
       { key: 'pick', label: 'בחירת תשובה', def: 45 },
     ],

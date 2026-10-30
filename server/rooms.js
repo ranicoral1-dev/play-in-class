@@ -131,6 +131,21 @@ function publicSettings({ customWords, ...rest }) {
   return rest;
 }
 
+// ההגדרות שהמארח בוחר עכשיו בלובי - רק ערכים פשוטים (בלי טקסט חופשי, שנשאר אצל המארח)
+const plain = (v) => typeof v === 'boolean' || (typeof v === 'number' && Number.isFinite(v)) || (typeof v === 'string' && v.length <= 40);
+
+function cleanDraft(gameId, settings) {
+  if (!GAMES[gameId]) return null;
+  const out = {};
+  for (const [k, v] of Object.entries(settings || {}).slice(0, 30)) {
+    if (k === 'times' && v && typeof v === 'object') {
+      out.times = {};
+      for (const [tk, tv] of Object.entries(v).slice(0, 10)) if (typeof tv === 'number') out.times[String(tk).slice(0, 20)] = tv;
+    } else if (plain(v)) out[String(k).slice(0, 30)] = v;
+  }
+  return { gameId, settings: publicSettings(out) };
+}
+
 function viewFor(room, pid) {
   const game = GAMES[room.gameId];
   return {
@@ -140,6 +155,9 @@ function viewFor(room, pid) {
     status: room.status,
     gameId: room.gameId,
     settings: publicSettings(room.settings),
+    // בלובי: מה המארח מגדיר עכשיו, ומה כל שחקן היה רוצה
+    draft: room.status === 'lobby' ? room.draft || null : null,
+    wishes: room.status === 'lobby' ? room.wishes || {} : {},
     players: room.players.map((p) => ({
       id: p.id,
       name: p.name,
@@ -294,6 +312,7 @@ export function registerSocket(io, socket) {
     const { room, pid, api } = ctx();
     if (!room) return;
     room.players = room.players.filter((p) => p.id !== pid);
+    if (room.wishes) delete room.wishes[pid];
     socket.leave(room.code);
     socket.data.code = null;
     if (room.players.length === 0) {
@@ -325,10 +344,44 @@ export function registerSocket(io, socket) {
     room.gameId = gameId;
     room.settings = game.sanitize(settings || {}, connected.length);
     room.status = 'countdown';
+    room.wishes = {};
     room.game = { participants: connected.map((p) => p.id) };
     room.startsAt = Date.now() + COUNTDOWN_MS;
     room.countdownTimer = setTimeout(() => beginGame(room), COUNTDOWN_MS);
     ack?.({ ok: true });
+    broadcast(room);
+  });
+
+  // המארח משתף את ההגדרות שהוא בוחר, כדי שכולם יראו
+  socket.on('host:draft', ({ gameId, settings } = {}) => {
+    const { room, pid } = ctx();
+    if (!room || room.hostId !== pid || room.status !== 'lobby') return;
+    const draft = cleanDraft(gameId, settings);
+    if (!draft || JSON.stringify(draft) === JSON.stringify(room.draft)) return;
+    room.draft = draft;
+    broadcast(room);
+  });
+
+  // שחקן מבקש משחק או הגדרה (key ריק = רק המשחק). לחיצה שוב על אותו דבר מבטלת
+  socket.on('wish', ({ gameId, key, value } = {}) => {
+    const { room, pid } = ctx();
+    const player = room && getPlayer(room, pid);
+    if (!player || room.hostId === pid || room.status !== 'lobby' || !GAMES[gameId]) return;
+    room.wishes ||= {};
+    const old = room.wishes[pid];
+    let w = old && old.gameId === gameId ? { gameId, picks: { ...old.picks } } : { gameId, picks: {} };
+    if (key == null) {
+      if (old && old.gameId === gameId && !Object.keys(old.picks).length) w = null;
+    } else {
+      key = String(key).slice(0, 30);
+      if (!plain(value)) return;
+      if (w.picks[key] === value) delete w.picks[key];
+      else w.picks[key] = value;
+    }
+    if (w) room.wishes[pid] = w;
+    else delete room.wishes[pid];
+    const host = getPlayer(room, room.hostId);
+    if (w && host?.connected && host.socketId) IO.to(host.socketId).emit('wish', { pid, gameId, key: key ?? null, value: key == null ? null : w.picks[key] ?? null });
     broadcast(room);
   });
 

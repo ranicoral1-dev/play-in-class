@@ -1,14 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { success } from '../sound.js';
-import { useRoom, GameHeader, PlayerTag, Waiting, DoneRow, EditButton, usePlayer } from '../components/ui.jsx';
+import { useRoom, GameHeader, PlayerTag, Waiting, DoneRow, EditButton, usePlayer, AskForm } from '../components/ui.jsx';
 
 export default function About({ g }) {
   return (
     <div className="card">
-      <GameHeader title="🪞 מה חושבים עליך" round={g.round} totalRounds={g.totalRounds} />
+      <GameHeader title="🪞 מה חושבים עליך" round={g.round} totalRounds={g.totalRounds}>
+        {g.asker && (
+          <span className="chip bg-violet-100 text-violet-800">
+            ✍️ כותב/ת השאלה: <PlayerTag id={g.asker} />
+          </span>
+        )}
+      </GameHeader>
       <Subject g={g} />
+      {g.phase === 'ask' && <AskPhase g={g} />}
       {g.phase === 'write' && <WritePhase g={g} key={g.round} />}
-      {g.phase !== 'write' && <AnswersPhase g={g} key={g.round} />}
+      {(g.phase === 'pick' || g.phase === 'reveal') && <AnswersPhase g={g} key={g.round} />}
     </div>
   );
 }
@@ -25,6 +32,15 @@ function Subject({ g }) {
   );
 }
 
+function AskPhase({ g }) {
+  const subject = usePlayer(g.subject);
+  const asker = usePlayer(g.asker);
+  if (g.amAsker) {
+    return <AskForm title={`כתבו שאלה על ${subject.name}`} placeholder={`אם ${subject.name} היה/תה סרט, איזה סרט?`} maxLength={140} />;
+  }
+  return <Waiting emoji="✍️">{asker.name} כותב/ת שאלה{g.amSubject ? ' עליך' : ''}…</Waiting>;
+}
+
 function WritePhase({ g }) {
   const { act } = useRoom();
   const [text, setText] = useState('');
@@ -33,11 +49,11 @@ function WritePhase({ g }) {
   const t = useRef();
 
   useEffect(() => {
-    if (sent || g.amSubject) return;
+    if (sent || g.amSubject || g.amAsker) return;
     clearTimeout(t.current);
     t.current = setTimeout(() => act('draft', text), 500);
     return () => clearTimeout(t.current);
-  }, [text, sent, act, g.amSubject]);
+  }, [text, sent, act, g.amSubject, g.amAsker]);
 
   const submit = async () => {
     if (!(await act('write', text)).error) setEditing(false);
@@ -45,8 +61,11 @@ function WritePhase({ g }) {
 
   return (
     <div className="animate-rise">
+      {g.autoQuestion && <p className="mb-3 text-center text-sm text-indigo-400">⏰ לא נכתבה שאלה בזמן - השאלה מהמשחק</p>}
       {g.amSubject ? (
         <Waiting emoji="👀">כולם כותבים עליך עכשיו… השאלה תיחשף כשכולם יסיימו</Waiting>
+      ) : g.amAsker ? (
+        <Waiting emoji="🍿">כולם עונים על השאלה שלך… בסיבוב הזה אתם צופים</Waiting>
       ) : sent ? (
         <div className="text-center">
           <Waiting emoji="📮">נשלח! מחכים לשאר…</Waiting>

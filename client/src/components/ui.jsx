@@ -191,3 +191,27 @@ export function RoundPoints({ points }) {
     </div>
   );
 }
+
+// כותב השאלה של הסיבוב (מטבע הסודות, מה חושבים עליך)
+export function AskForm({ title, placeholder, maxLength = 120 }) {
+  const { act } = useRoom();
+  const [text, setText] = useState('');
+  return (
+    <form
+      className="mx-auto max-w-xl animate-rise"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (text.trim()) act('ask', text);
+      }}
+    >
+      <p className="mb-3 text-center font-display text-2xl">{title}</p>
+      <div className="flex gap-2">
+        <input className="input" autoFocus maxLength={maxLength} placeholder={placeholder} value={text} onChange={(e) => setText(e.target.value)} />
+        <button className="btn-pink shrink-0" disabled={!text.trim()}>
+          שליחה ✨
+        </button>
+      </div>
+      <p className="mt-2 text-center text-sm text-indigo-400">בסיבוב הזה אתם רק צופים 👀</p>
+    </form>
+  );
+}
