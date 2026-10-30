@@ -232,7 +232,7 @@ function ResultsPhase({ g }) {
   );
 }
 
-export function Lightbox({ src, onClose }) {
+function Lightbox({ src, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex animate-rise cursor-zoom-out items-center justify-center bg-black/80 p-4" onClick={onClose}>
       <img src={src} alt="" className="max-h-full max-w-full rounded-2xl shadow-2xl" />
