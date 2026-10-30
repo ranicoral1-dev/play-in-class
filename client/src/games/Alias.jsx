@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { success, fail } from '../sound.js';
 import { useRoom, GameHeader, PlayerTag, Waiting, NextButton, usePlayer } from '../components/ui.jsx';
 
 const TEAM_STYLES = [
@@ -307,9 +308,16 @@ function TeamChat({ g }) {
   const canWrite = g.myTeam === g.cur;
   const lastId = g.chat.length ? g.chat[g.chat.length - 1].id : 0;
 
+  const seenRef = useRef(lastId);
+
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
+    // צליל רק על הודעות חדשות, לא על מה שכבר היה כשנכנסנו
+    const fresh = g.chat.filter((m) => m.id > seenRef.current);
+    seenRef.current = lastId;
+    if (fresh.some((m) => m.kind === 'correct')) success();
+    else if (fresh.some((m) => m.kind === 'foul' || m.kind === 'skip')) fail();
   }, [lastId]);
 
   async function send(e) {

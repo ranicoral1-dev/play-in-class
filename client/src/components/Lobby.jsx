@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { emit } from '../socket.js';
-import { GAME_META } from '../lib.js';
+import { GAME_META, GENRES } from '../lib.js';
 import { useRoom, PlayerTag } from './ui.jsx';
 
 export default function Lobby() {
@@ -10,6 +10,7 @@ export default function Lobby() {
   const [selected, setSelected] = useState(state.gameId || null);
   const [values, setValues] = useState({});
   const [busy, setBusy] = useState(false);
+  const [genre, setGenre] = useState(null);
 
   function settingsFor(id) {
     const meta = GAME_META[id];
@@ -57,8 +58,22 @@ export default function Lobby() {
         )}
       </div>
 
+      <div className="flex flex-wrap gap-2">
+        {[null, ...Object.keys(GENRES)].map((name) => (
+          <button
+            key={name ?? 'all'}
+            onClick={() => setGenre(name)}
+            className={`chip py-1.5 transition ${genre === name ? 'bg-sun text-ink shadow' : 'bg-white/15 text-white hover:bg-white/25'}`}
+          >
+            {name ? `${GENRES[name]} ${name}` : '✨ הכל'}
+          </button>
+        ))}
+      </div>
+
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {Object.entries(GAME_META).map(([id, g], i) => {
+        {Object.entries(GAME_META)
+          .filter(([, g]) => !genre || g.genres.includes(genre))
+          .map(([id, g], i) => {
           const active = selected === id;
           const enough = count >= g.minPlayers;
           return (
@@ -74,6 +89,13 @@ export default function Lobby() {
               <span className="absolute -left-3 -top-3 text-7xl opacity-20 transition group-hover:scale-110">{g.emoji}</span>
               <div className="text-4xl">{g.emoji}</div>
               <div className="mt-2 font-display text-2xl">{g.name}</div>
+              <div className="mt-1.5 flex flex-wrap gap-1">
+                {g.genres.map((name) => (
+                  <span key={name} className="rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">
+                    {GENRES[name]} {name}
+                  </span>
+                ))}
+              </div>
               <p className="mt-1 text-sm leading-snug text-white/90">{g.desc}</p>
               <div className={`mt-3 text-xs font-bold ${enough ? 'text-white/70' : 'text-sun'}`}>
                 {g.minPlayers}+ שחקנים {enough ? '' : '· צריך עוד חברים'}

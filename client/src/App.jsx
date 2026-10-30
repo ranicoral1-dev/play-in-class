@@ -3,6 +3,7 @@ import { socket, emit, getPlayerId, loadProfile } from './socket.js';
 import { RoomContext } from './components/ui.jsx';
 import Home from './components/Home.jsx';
 import Room from './components/Room.jsx';
+import { pop, ding } from './sound.js';
 
 export default function App() {
   const [state, setState] = useState(null);
@@ -41,7 +42,11 @@ export default function App() {
     };
     const onDisconnect = () => setConnected(false);
     const onChatHistory = (list) => setChat(list || []);
-    const onChat = (m) => setChat((old) => [...old, m].slice(-100));
+    const onChat = (m) => {
+      setChat((old) => [...old, m].slice(-100));
+      const me = getPlayerId();
+      if (m.pid !== me) (m.mentions?.includes(me) ? ding : pop)();
+    };
     const onKicked = () => {
       sessionStorage.removeItem('room');
       setState(null);

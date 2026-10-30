@@ -4,10 +4,27 @@ export const EMOJIS = [
   '🎸', '🚀', '🌈', '🔥', '⭐', '💎', '🎩', '🧠',
 ];
 
+// ז'אנרים: אימוג'י וצבע לכל אחד
+export const GENRES = {
+  אסטרטגיה: '♟️',
+  'זמן אמת': '⚡',
+  קלפים: '🃏',
+  'תפקידים סודיים': '🎭',
+  בלוף: '🤥',
+  מילים: '🔤',
+  ניחושים: '🔍',
+  קבוצות: '🤝',
+  שיתופי: '🫂',
+  חברתי: '💬',
+  יצירתי: '🎨',
+  כתיבה: '✍️',
+};
+
 export const GAME_META = {
   wyr: {
     name: 'מה אתה מעדיף',
     emoji: '🤔',
+    genres: ['חברתי', 'ניחושים'],
     color: 'from-pink-500 to-rose-500',
     desc: 'הקובע כותב דילמה, כולם בוחרים - ואז מנחשים מי בחר מה.',
     minPlayers: 3,
@@ -21,6 +38,7 @@ export const GAME_META = {
   wordle: {
     name: 'נחש את המילה',
     emoji: '🟩',
+    genres: ['מילים', 'ניחושים'],
     color: 'from-emerald-500 to-teal-500',
     desc: 'כל אחד בוחר מילה סודית ומנחש מילה של מישהו אחר. מי הכי מהיר?',
     minPlayers: 2,
@@ -37,6 +55,7 @@ export const GAME_META = {
   party: {
     name: 'מי בא למסיבה?',
     emoji: '🎉',
+    genres: ['ניחושים', 'מילים'],
     color: 'from-amber-400 to-orange-500',
     desc: 'המארח בוחר קטגוריה סודית. תביאו משהו שמתאים - ותנחשו את הקטגוריה!',
     minPlayers: 2,
@@ -54,6 +73,7 @@ export const GAME_META = {
   story: {
     name: 'סיפור בהמשכים',
     emoji: '📜',
+    genres: ['יצירתי', 'כתיבה'],
     color: 'from-sky-500 to-indigo-500',
     desc: 'ממשיכים סיפור רק מהמילה האחרונה שקיבלתם. בסוף מדרגים את כולם.',
     minPlayers: 2,
@@ -69,6 +89,7 @@ export const GAME_META = {
   sameword: {
     name: 'אותה מילה',
     emoji: '🧠',
+    genres: ['מילים', 'שיתופי'],
     color: 'from-violet-500 to-fuchsia-500',
     desc: 'כולם כותבים מילה, ואז מחפשים מילה שמחברת. המטרה: שכולם יגידו אותו דבר!',
     minPlayers: 2,
@@ -84,6 +105,7 @@ export const GAME_META = {
   quote: {
     name: 'ציטוט',
     emoji: '💬',
+    genres: ['חברתי', 'כתיבה', 'ניחושים'],
     color: 'from-red-500 to-orange-500',
     desc: 'כולם כותבים משפטים, והמנחש צריך לזהות מי כתב מה. כל טעות - נקודה לכותב!',
     minPlayers: 3,
@@ -100,6 +122,7 @@ export const GAME_META = {
   complete: {
     name: 'המשך את המשפט',
     emoji: '✏️',
+    genres: ['יצירתי', 'כתיבה'],
     color: 'from-lime-500 to-green-600',
     desc: 'נותן המשפט משאיר מילים חסרות, כולם משלימים - ובוחרים את ההשלמה הכי טובה.',
     minPlayers: 3,
@@ -116,6 +139,7 @@ export const GAME_META = {
   poker: {
     name: 'פוקר',
     emoji: '🃏',
+    genres: ['קלפים', 'אסטרטגיה'],
     color: 'from-emerald-600 to-green-800',
     desc: 'טקסס הולדם אמיתי: הנקודות הן כסף. מהמרים, מעלים, מקפלים - ומי שנשאר עם הכי הרבה כסף מנצח.',
     minPlayers: 2,
@@ -129,6 +153,7 @@ export const GAME_META = {
   town: {
     name: 'עיירה',
     emoji: '🏘️',
+    genres: ['תפקידים סודיים', 'בלוף'],
     color: 'from-slate-700 to-indigo-900',
     desc: 'כל אחד מקבל תפקיד סודי: מתחזים מחסלים, שוטרים עוצרים, חובש מרפא, מנעולן משחרר מהכלא - ומי ששורד מרוויח.',
     minPlayers: 3,
@@ -146,6 +171,7 @@ export const GAME_META = {
   war: {
     name: 'מלחמה',
     emoji: '⚔️',
+    genres: ['אסטרטגיה', 'זמן אמת'],
     color: 'from-red-700 to-amber-600',
     desc: 'כל אחד בונה ממלכה על מפה של מחומשים. חקלאים, בנאים, אבירים ומגלי ארצות - בזמן אמת, בלי תורות. כורתים בריתות, סוחרים, ונלחמים!',
     minPlayers: 2,
@@ -156,6 +182,7 @@ export const GAME_META = {
   alias: {
     name: 'אליאס',
     emoji: '🗣️',
+    genres: ['קבוצות', 'מילים'],
     color: 'from-cyan-500 to-blue-600',
     desc: 'מתחלקים לקבוצות. המסביר מקבל כרטיס עם 8 מילים ומסביר לקבוצה בצ׳אט - בלי המילה, בלי השורש ובלי אנגלית. כל ניחוש = משבצת קדימה!',
     minPlayers: 4,
@@ -173,6 +200,7 @@ export const GAME_META = {
   odd: {
     name: 'מי השונה',
     emoji: '🕵️',
+    genres: ['תפקידים סודיים', 'בלוף', 'מילים'],
     color: 'from-zinc-600 to-stone-800',
     desc: 'כולם מקבלים מילה - חוץ מהשונה. כל אחד מתאר בתורו, ואז מצביעים מי השונה. מתחזה (שלא יודע שהוא מתחזה) או איש לבן (שיודע, ומקבל רק קטגוריה).',
     minPlayers: 3,

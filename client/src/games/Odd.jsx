@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { success, fail } from '../sound.js';
 import { useRoom, GameHeader, PlayerTag, Waiting, DoneRow, NextButton, RoundPoints, usePlayer } from '../components/ui.jsx';
 
 export default function Odd({ g }) {
@@ -183,6 +184,9 @@ function ResultPhase({ g }) {
   const v = g.lastVote;
   const outP = usePlayer(v.outId);
   const odd = g.white ? 'איש לבן' : 'מתחזה';
+  useEffect(() => {
+    if (v.outId) (v.wasOdd ? success : fail)();
+  }, []);
   return (
     <div className="animate-rise text-center">
       {v.outId ? (

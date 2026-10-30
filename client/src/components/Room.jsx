@@ -19,6 +19,7 @@ import Alias from '../games/Alias.jsx';
 import Odd from '../games/Odd.jsx';
 import Chat, { useChatTracker, Badges } from './Chat.jsx';
 import { ProfileModal } from './Profile.jsx';
+import { isMuted, setMuted } from '../sound.js';
 
 const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town, war: War, alias: Alias, odd: Odd };
 
@@ -110,6 +111,7 @@ function RoomHeader({ tracker, onEditProfile }) {
             <Badges unread={tracker.unread} mentions={tracker.mentions} />
           </button>
         )}
+        <SoundButton />
         {isHost && state.status === 'game' && (
           <button
             className="rounded-xl bg-white/15 px-3 py-2 text-sm font-bold hover:bg-white/25"
@@ -126,6 +128,22 @@ function RoomHeader({ tracker, onEditProfile }) {
         </button>
       </div>
     </header>
+  );
+}
+
+function SoundButton() {
+  const [muted, setM] = useState(isMuted());
+  return (
+    <button
+      title={muted ? 'הפעלת צלילים' : 'השתקה'}
+      className="rounded-xl bg-white/15 px-3 py-2 text-sm font-bold hover:bg-white/25"
+      onClick={() => {
+        setMuted(!muted);
+        setM(!muted);
+      }}
+    >
+      {muted ? '🔇' : '🔊'}
+    </button>
   );
 }
 
