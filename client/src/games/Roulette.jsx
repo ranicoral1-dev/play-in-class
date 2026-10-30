@@ -6,14 +6,17 @@ import { Lightbox } from './Reel.jsx';
 
 export default function Roulette({ g }) {
   const collecting = g.phase === 'collect';
+  const guessing = g.phase === 'guess' || g.phase === 'reveal';
   return (
     <div className="card">
       <GameHeader title="📸 רולטת תמונות" round={collecting || g.phase === 'empty' ? null : g.round} totalRounds={g.totalRounds}>
         {collecting && <span className="chip">בחירת תמונות</span>}
+        {g.spectator && <span className="chip">👀 צופה</span>}
       </GameHeader>
       {collecting && <CollectPhase g={g} />}
       {g.phase === 'empty' && <Waiting emoji="🙈">לא נשלחו מספיק תמונות - צריך לפחות 2 שחקנים ששלחו</Waiting>}
-      {(g.phase === 'guess' || g.phase === 'reveal') && <GuessPhase g={g} key={g.round} />}
+      {guessing && g.spectator && <LateJoin />}
+      {guessing && <GuessPhase g={g} key={g.round} />}
     </div>
   );
 }
@@ -51,18 +54,13 @@ function pickRandom(files, n) {
   return a.slice(0, n);
 }
 
-function CollectPhase({ g }) {
-  const { state, receivedAt, showToast } = useRoom();
+// הגלריה והתמונות שנבחרו. במצב אקראי המשחק מגריל מהגלריה, ובמצב בחירה - מה שבחרתם
+function useGallery() {
+  const { state, showToast } = useRoom();
   const { random, perPlayer } = state.settings;
-  const [gallery, setGallery] = useState([]); // מצב אקראי: כל התמונות שמגרילים מהן
-  const [chosen, setChosen] = useState([]); // התמונות שיישלחו
-  const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [zoom, setZoom] = useState(null);
   const input = useRef();
-  const submitted = g.mine.length > 0 && !editing;
-  const ids = state.players.filter((p) => p.inGame).map((p) => p.id);
-
+  const [gallery, setGallery] = useState([]);
+  const [chosen, setChosen] = useState([]);
   const previews = useMemo(() => chosen.map((f) => URL.createObjectURL(f)), [chosen]);
   useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
 
@@ -82,19 +80,145 @@ function CollectPhase({ g }) {
     }
   }
 
+  // הגרלה מחדש: אם יש מספיק תמונות - רק כאלה שלא הוצגו עכשיו
+  function reroll() {
+    const rest = gallery.filter((f) => !chosen.includes(f));
+    setChosen(pickRandom(rest.length >= perPlayer ? rest : gallery, perPlayer));
+  }
+
+  const el = <input ref={input} type="file" accept="image/*" multiple hidden onChange={onFiles} />;
+  // חייב לקרות ישר מלחיצה, אחרת הדפדפן חוסם את פתיחת הגלריה
+  const open = () => input.current?.click();
+  return { el, open, gallery, chosen, setChosen, previews, reroll, random, perPlayer };
+}
+
+async function sendPhotos(files, showToast, auto = false) {
+  const images = (await Promise.all(files.map((f) => compress(f).catch(() => null)))).filter(Boolean);
+  if (!images.length) {
+    showToast('לא הצלחנו לפתוח את התמונות 😕 נסו אחרות');
+    return false;
+  }
+  const res = await emit('game:action', { type: 'submit', data: images }, 60000);
+  if (res.error) {
+    showToast(res.error);
+    return false;
+  }
+  if (images.length < files.length && !auto) showToast('חלק מהתמונות לא נפתחו ולא נשלחו');
+  return true;
+}
+
+// בקשת גישה לגלריה, עם הסבר למה זה בטוח
+function Consent({ perPlayer, onAgree, onDecline }) {
+  const [more, setMore] = useState(false);
+  return (
+    <div className="mx-auto max-w-lg animate-pop rounded-3xl bg-gradient-to-br from-orange-50 to-pink-50 p-5 text-center shadow-inner">
+      <div className="mb-2 text-5xl">🔐🖼️</div>
+      <h3 className="font-display text-2xl">המשחק מבקש גישה לגלריה שלך</h3>
+      <p className="mt-2 text-indigo-600">
+        כדי להגריל ממנה {perPlayer === 1 ? 'תמונה אחת' : `${perPlayer} תמונות`}. את מה שהוגרל תראו קודם - ותחליטו אם לשלוח או להגריל מחדש.
+      </p>
+      {more && (
+        <ul className="mt-4 animate-rise space-y-2 rounded-2xl bg-white/80 p-4 text-right text-sm text-indigo-900">
+          <li>📱 ההגרלה קורית אצלך במכשיר - הגלריה לא נשלחת לשום מקום.</li>
+          <li>👀 רואים קודם את מה שהוגרל, ואפשר להגריל מחדש כמה פעמים שרוצים.</li>
+          <li>🚀 רק התמונות שהוגרלו נשלחות, ורק אחרי שלוחצים ״שליחה״.</li>
+          <li>🗑️ הן מוקטנות, נשמרות רק בשרת של המשחק ונמחקות כשהחדר נסגר או כשמתחיל משחק חדש.</li>
+          <li>🚫 אנחנו לא שומרים, לא מעלים ולא רואים שום תמונה אחרת.</li>
+          <li>📂 הטלפון יפתח את הגלריה - סמנו את כל התמונות (או כמה שיותר), וההגרלה תהיה מכולן.</li>
+        </ul>
+      )}
+      <div className="mt-5 flex flex-wrap justify-center gap-3">
+        <button className="btn-mint px-8 text-xl" onClick={onAgree}>
+          ✅ מסכים/ה
+        </button>
+        <button className="btn-ghost" onClick={onDecline}>
+          ❌ לא מסכים/ה
+        </button>
+      </div>
+      <button className="mt-3 text-sm font-bold text-indigo-500 hover:text-grape" onClick={() => setMore((m) => !m)}>
+        {more ? 'פחות ▲' : 'עוד… ▼'}
+      </button>
+    </div>
+  );
+}
+
+function Spectating({ onAgree, children }) {
+  return (
+    <div className="mx-auto max-w-lg animate-rise rounded-3xl bg-indigo-50 p-5 text-center">
+      <div className="mb-1 text-5xl">👀</div>
+      <div className="font-display text-xl">את/ה צופה במשחק</div>
+      <p className="mt-1 text-sm text-indigo-500">{children}</p>
+      <button className="btn-mint mt-4" onClick={onAgree}>
+        ✅ שיניתי את דעתי - מסכים/ה לגישה לגלריה
+      </button>
+    </div>
+  );
+}
+
+// התמונות שנבחרו/הוגרלו, עם הגרלה מחדש ושליחה
+function Picker({ gal, busy, onSend }) {
+  const [zoom, setZoom] = useState(null);
+  const { random, perPlayer, gallery, chosen } = gal;
+  return (
+    <>
+      {!random && (
+        <>
+          <p className="mb-2 text-center font-display text-2xl">🖼️ בחרו {perPlayer === 1 ? 'תמונה אחת' : `עד ${perPlayer} תמונות`}</p>
+          <p className="mb-4 text-center text-sm text-indigo-400">אף אחד לא יודע של מי כל תמונה - עד שמנחשים 😉</p>
+        </>
+      )}
+      {random && chosen.length > 0 && (
+        <p className="mb-3 text-center font-display text-2xl">
+          🎲 הוגרלו לך {chosen.length === 1 ? 'תמונה אחת' : `${chosen.length} תמונות`}
+          <span className="block font-sans text-sm font-semibold text-indigo-400">
+            מתוך {gallery.length} בגלריה{gallery.length < perPlayer && ' - כדאי לסמן יותר תמונות'}
+          </span>
+        </p>
+      )}
+      {random && !chosen.length && <p className="mb-3 text-center font-display text-xl">פתחו את הגלריה וסמנו את כל התמונות 📂</p>}
+      {chosen.length > 0 && (
+        <Thumbs srcs={gal.previews} onZoom={setZoom} onRemove={random ? null : (i) => gal.setChosen((c) => c.filter((_, k) => k !== i))} />
+      )}
+      <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
+        {random && gallery.length > perPlayer && (
+          <button className="btn-sky px-8 text-xl" disabled={busy} onClick={gal.reroll}>
+            🎲 הגרלה מחדש
+          </button>
+        )}
+        {chosen.length > 0 && (
+          <button className="btn-pink px-10 text-xl" disabled={busy} onClick={onSend}>
+            {busy ? 'שולח…' : `שליחה (${chosen.length}) 🚀`}
+          </button>
+        )}
+        <button className={chosen.length ? 'btn-ghost' : 'btn-sky px-8 text-xl'} disabled={busy} onClick={gal.open}>
+          {random ? (gallery.length ? '📂 גלריה אחרת' : '📂 פתיחת הגלריה') : chosen.length ? '➕ עוד תמונות' : '📂 בחירת תמונות'}
+        </button>
+      </div>
+      {zoom && <Lightbox src={zoom} onClose={() => setZoom(null)} />}
+    </>
+  );
+}
+
+function CollectPhase({ g }) {
+  const { state, receivedAt, showToast, act } = useRoom();
+  const gal = useGallery();
+  const [agreed, setAgreed] = useState(!gal.random);
+  const [editing, setEditing] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [zoom, setZoom] = useState(null);
+  const submitted = g.mine.length > 0 && !editing;
+
+  const agree = () => {
+    setAgreed(true);
+    gal.open();
+  };
+
   async function submit(auto = false) {
-    if (busy || !chosen.length) return;
+    if (busy || !gal.chosen.length) return;
     setBusy(true);
-    try {
-      const images = (await Promise.all(chosen.map((f) => compress(f).catch(() => null)))).filter(Boolean);
-      if (!images.length) return showToast('לא הצלחנו לפתוח את התמונות 😕 נסו אחרות');
-      const res = await emit('game:action', { type: 'submit', data: images }, 60000);
-      if (res.error) return showToast(res.error);
-      if (images.length < chosen.length && !auto) showToast('חלק מהתמונות לא נפתחו ולא נשלחו');
-      setEditing(false);
-    } finally {
-      setBusy(false);
-    }
+    const ok = await sendPhotos(gal.chosen, showToast, auto);
+    setBusy(false);
+    if (ok) setEditing(false);
   }
 
   // רגע לפני שהזמן נגמר - שולחים אוטומטית את מה שנבחר
@@ -113,68 +237,78 @@ function CollectPhase({ g }) {
     return () => clearInterval(t);
   }, [deadline, submitted]);
 
+  let body;
   if (submitted) {
-    return (
-      <div className="animate-rise text-center">
+    body = (
+      <div className="text-center">
         <Waiting emoji="📮">התמונות נשלחו! מחכים לשאר…</Waiting>
         <Thumbs srcs={g.mine.map(serverUrl)} onZoom={setZoom} />
         <EditButton onClick={() => setEditing(true)} />
-        <DoneRow ids={ids} doneIds={g.submittedIds} label="מי כבר שלח" />
-        {zoom && <Lightbox src={zoom} onClose={() => setZoom(null)} />}
       </div>
+    );
+  } else if (!agreed) {
+    body = g.spectator ? (
+      <Spectating onAgree={agree}>לא נתת גישה לגלריה, אז רק צופים. אפשר להצטרף בכל רגע.</Spectating>
+    ) : (
+      <Consent perPlayer={gal.perPlayer} onAgree={agree} onDecline={() => act('spectate')} />
+    );
+  } else {
+    body = (
+      <>
+        <Picker gal={gal} busy={busy} onSend={() => submit()} />
+        {g.mine.length > 0 && (
+          <div className="mt-3 text-center">
+            <button className="btn-ghost" disabled={busy} onClick={() => setEditing(false)}>
+              חזרה בלי לשנות
+            </button>
+          </div>
+        )}
+      </>
     );
   }
 
   return (
     <div className="animate-rise">
-      <p className="mb-2 text-center font-display text-2xl">
-        {random ? `🎲 המשחק יגריל ${perPlayer} תמונות מהגלריה שלך` : `🖼️ בחרו ${perPlayer === 1 ? 'תמונה אחת' : `עד ${perPlayer} תמונות`}`}
-      </p>
-      <p className="mb-4 text-center text-sm text-indigo-400">
-        {random
-          ? 'בחרו הרבה תמונות (בטלפון אפשר לסמן את כל הגלריה) - רק התמונות שהוגרלו יישלחו'
-          : 'אף אחד לא יודע של מי כל תמונה - עד שמנחשים 😉'}
-      </p>
-      <input ref={input} type="file" accept="image/*" multiple hidden onChange={onFiles} />
-
-      {chosen.length > 0 && (
-        <>
-          {random && (
-            <p className="mb-2 text-center text-sm font-semibold text-indigo-500">
-              הוגרלו {chosen.length} מתוך {gallery.length} תמונות
-              {gallery.length < perPlayer && ' - בחרו עוד תמונות כדי שיהיה מה להגריל'}
-            </p>
-          )}
-          <Thumbs
-            srcs={previews}
-            onZoom={setZoom}
-            onRemove={random ? null : (i) => setChosen((c) => c.filter((_, k) => k !== i))}
-          />
-        </>
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center justify-center gap-3">
-        <button className={chosen.length ? 'btn-ghost' : 'btn-sky px-8 text-xl'} disabled={busy} onClick={() => input.current.click()}>
-          {random ? (gallery.length ? '📂 גלריה אחרת' : '📂 בחירת תמונות מהגלריה') : chosen.length ? '➕ עוד תמונות' : '📂 בחירת תמונות'}
-        </button>
-        {random && gallery.length > perPlayer && (
-          <button className="btn-sky" disabled={busy} onClick={() => setChosen(pickRandom(gallery, perPlayer))}>
-            🎲 הגרלה מחדש
-          </button>
-        )}
-        {chosen.length > 0 && (
-          <button className="btn-pink px-10 text-xl" disabled={busy} onClick={() => submit()}>
-            {busy ? 'שולח…' : `שליחה (${chosen.length}) 🚀`}
-          </button>
-        )}
-        {g.mine.length > 0 && (
-          <button className="btn-ghost" disabled={busy} onClick={() => setEditing(false)}>
-            חזרה בלי לשנות
-          </button>
-        )}
-      </div>
-      <DoneRow ids={ids} doneIds={g.submittedIds} label="מי כבר שלח" />
+      {gal.el}
+      {body}
+      <DoneRow ids={g.playerIds} doneIds={g.submittedIds} label="מי כבר שלח" />
       {zoom && <Lightbox src={zoom} onClose={() => setZoom(null)} />}
+    </div>
+  );
+}
+
+// צופה שהסכים באמצע: התמונות שלו נכנסות במקום תמונות שעוד לא הוצגו, ומצטרפים לניחושים
+function LateJoin() {
+  const { showToast } = useRoom();
+  const gal = useGallery();
+  const [agreed, setAgreed] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function submit() {
+    if (busy || !gal.chosen.length) return;
+    setBusy(true);
+    await sendPhotos(gal.chosen, showToast);
+    setBusy(false);
+  }
+
+  return (
+    <div className="mb-5 animate-rise">
+      {gal.el}
+      {agreed ? (
+        <div className="rounded-3xl bg-indigo-50 p-4">
+          <Picker gal={gal} busy={busy} onSend={submit} />
+          <p className="mt-2 text-center text-xs text-indigo-400">התמונות שלך ייכנסו במקום תמונות שעוד לא הוצגו, ותצטרפו לניחושים</p>
+        </div>
+      ) : (
+        <Spectating
+          onAgree={() => {
+            setAgreed(true);
+            gal.open();
+          }}
+        >
+          לא נתת גישה לגלריה, אז רק צופים. אפשר להצטרף גם עכשיו.
+        </Spectating>
+      )}
     </div>
   );
 }
@@ -221,7 +355,7 @@ function GuessPhase({ g }) {
   return (
     <div className="animate-rise">
       <p className="mb-3 text-center font-display text-2xl">
-        {revealed ? `זו התמונה של ${owner.name}! 📸` : g.mineNow ? 'זו התמונה שלך! 🤫 פרצוף פוקר…' : g.myGuess ? 'ניחשת! מחכים לשאר…' : 'של מי התמונה? 🤔'}
+        {revealed ? `זו התמונה של ${owner.name}! 📸` : g.mineNow ? 'זו התמונה שלך! 🤫 פרצוף פוקר…' : g.spectator ? 'של מי התמונה? 👀' : g.myGuess ? 'ניחשת! מחכים לשאר…' : 'של מי התמונה? 🤔'}
       </p>
       <img
         src={serverUrl(g.src)}

@@ -15,10 +15,23 @@ function decodeImage(data) {
   return { type: `image/${m[1]}`, buf };
 }
 
-const allSubmitted = (room, api) => api.activeIds().every((id) => room.game.photos[id]);
+// מי שלא הסכים לתת גישה לגלריה צופה במשחק, עד שהוא מסכים
+const players = (room, api) => api.activeIds().filter((id) => !room.game.spectators.includes(id));
+
+const allSubmitted = (room, api) => players(room, api).every((id) => room.game.photos[id]);
 
 // מי שהתמונה שלו לא מנחש
-const guessers = (room, api) => api.activeIds().filter((id) => id !== room.game.current?.owner);
+const guessers = (room, api) => players(room, api).filter((id) => id !== room.game.current?.owner);
+
+// מי שהסכים באמצע הניחושים: התמונות שלו מחליפות תמונות שעוד לא הוצגו, כך שהמספר לא משתנה
+function lateJoin(room, pid, photos) {
+  const g = room.game;
+  const free = shuffle(Array.from({ length: g.deck.length - g.round }, (_, k) => g.round + k));
+  photos.forEach((p, k) => {
+    if (k < free.length) g.deck[free[k]] = { ...p, owner: pid };
+  });
+  if (!g.owners.includes(pid)) g.owners.push(pid);
+}
 
 function startGuessing(room, api) {
   const g = room.game;
@@ -74,6 +87,7 @@ export default {
     const g = room.game;
     g.phase = 'collect';
     g.photos = {};
+    g.spectators = [];
     g.round = 0;
     g.totalRounds = room.settings.show;
     api.setTimer(api.time('collect'), () => startGuessing(room, api));
@@ -85,11 +99,21 @@ export default {
       if (!api.isHost(pid) || g.phase !== 'reveal') return;
       return nextPhoto(room, api);
     }
-    if (g.phase === 'collect' && type === 'submit') {
+    if (type === 'spectate' && g.phase === 'collect' && room.settings.random) {
+      if (!g.spectators.includes(pid)) g.spectators.push(pid);
+      delete g.photos[pid];
+      if (allSubmitted(room, api)) startGuessing(room, api);
+      return;
+    }
+    const late = g.spectators.includes(pid) && (g.phase === 'guess' || g.phase === 'reveal');
+    if (type === 'submit' && (g.phase === 'collect' || late)) {
       const list = Array.isArray(data) ? data.slice(0, room.settings.perPlayer) : [];
       const photos = list.map(decodeImage);
       if (!photos.length || photos.some((p) => !p)) return 'אחת התמונות גדולה מדי או לא תקינה';
-      g.photos[pid] = photos.map((p) => ({ ...p, token: crypto.randomBytes(12).toString('hex') }));
+      const withTokens = photos.map((p) => ({ ...p, token: crypto.randomBytes(12).toString('hex') }));
+      g.spectators = g.spectators.filter((id) => id !== pid);
+      if (late) return lateJoin(room, pid, withTokens);
+      g.photos[pid] = withTokens;
       if (allSubmitted(room, api)) startGuessing(room, api);
       return;
     }
@@ -117,8 +141,9 @@ export default {
 
   view(room, pid, api) {
     const g = room.game;
-    const v = { phase: g.phase, round: g.round, totalRounds: g.totalRounds };
+    const v = { phase: g.phase, round: g.round, totalRounds: g.totalRounds, spectator: g.spectators.includes(pid), spectatorIds: g.spectators };
     if (g.phase === 'collect') {
+      v.playerIds = players(room, api);
       v.submittedIds = Object.keys(g.photos);
       v.mine = (g.photos[pid] || []).map((p) => `/img/${room.code}/${p.token}`);
       return v;
