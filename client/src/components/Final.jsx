@@ -1,8 +1,54 @@
+import { useEffect, useState } from 'react';
 import { socket, emit } from '../socket.js';
+import { drumRoll } from '../sound.js';
 import { GAME_META } from '../lib.js';
 import { useRoom, Avatar } from './ui.jsx';
 
+const DRUM_SEC = 2.6;
+const CONFETTI = ['🎉', '🎊', '⭐', '✨', '🥳', '🏆', '🎈', '💫'];
+
 export default function Final() {
+  const [drumming, setDrumming] = useState(true);
+
+  useEffect(() => {
+    drumRoll(DRUM_SEC);
+    const t = setTimeout(() => setDrumming(false), DRUM_SEC * 1000);
+    return () => clearTimeout(t);
+  }, []);
+
+  return drumming ? <DrumRoll /> : <Results />;
+}
+
+// תיפוף לפני חשיפת הטבלה
+function DrumRoll() {
+  const { state } = useRoom();
+  return (
+    <div className="card relative overflow-hidden py-14 text-center">
+      <div className="text-sm font-bold text-indigo-400">{GAME_META[state.gameId]?.name} · סוף המשחק</div>
+      <div className="mt-6 flex items-end justify-center gap-2 text-7xl sm:text-8xl">
+        <span className="inline-block animate-drum">🥁</span>
+        <span className="inline-block animate-drum" style={{ animationDelay: '.09s' }}>
+          🥁
+        </span>
+      </div>
+      <h2 className="mt-6 font-display text-3xl animate-shake sm:text-4xl">ו… המנצח הוא</h2>
+      <div className="mt-3 flex justify-center gap-2">
+        {[0, 1, 2].map((i) => (
+          <span key={i} className="h-3 w-3 rounded-full bg-grape animate-bounce" style={{ animationDelay: `${i * 0.15}s` }} />
+        ))}
+      </div>
+      <div className="mx-auto mt-10 flex max-w-xs items-end justify-center gap-3 opacity-60">
+        {['h-16', 'h-24', 'h-10'].map((h, i) => (
+          <div key={i} className={`flex-1 rounded-t-2xl bg-indigo-100 animate-shake ${h}`} style={{ animationDelay: `${i * 0.1}s` }}>
+            <span className="text-2xl">❔</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function Results() {
   const { state, showToast } = useRoom();
   const isHost = state.hostId === state.me;
   const players = state.players.filter((p) => p.inGame).sort((a, b) => b.score - a.score);
@@ -18,7 +64,16 @@ export default function Final() {
   }
 
   return (
-    <div className="card overflow-hidden text-center animate-pop">
+    <div className="card relative overflow-hidden text-center animate-pop">
+      {CONFETTI.concat(CONFETTI).map((e, i) => (
+        <span
+          key={i}
+          className="pointer-events-none absolute top-0 text-2xl animate-confetti"
+          style={{ left: `${(i * 61) % 96}%`, animationDelay: `${(i % 8) * 0.12}s` }}
+        >
+          {e}
+        </span>
+      ))}
       <div className="pointer-events-none mb-1 text-5xl">🎊🏆🎊</div>
       <div className="text-sm font-bold text-indigo-400">{GAME_META[state.gameId]?.name} · סוף המשחק</div>
       <h2 className="mt-1 font-display text-4xl sm:text-5xl">

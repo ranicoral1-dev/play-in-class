@@ -8,6 +8,7 @@ const EMPTY_ROOM_TTL = 30 * 60 * 1000;
 const REVEAL_SEC = 15;
 const CHAT_MAX = 100;
 const CHAT_GAP_MS = 400;
+const COUNTDOWN_MS = 4000; // 3, 2, 1, 0 ויוצאים לדרך
 
 function genCode() {
   let code;
@@ -103,6 +104,7 @@ function viewFor(room, pid) {
       connected: p.connected,
       inGame: room.status !== 'lobby' && !!room.game?.participants.includes(p.id),
     })),
+    countdown: room.status === 'countdown' ? Math.max(0, room.startsAt - Date.now()) : null,
     timeLeft: room.deadline ? Math.max(0, room.deadline - Date.now()) : null,
     canSkip: !!room.timerCb,
     game: room.status === 'game' && game ? game.view(room, pid, apiFor(room)) : null,
@@ -123,9 +125,33 @@ function scheduleCleanup(room) {
   room.cleanupTimer = setTimeout(() => {
     if (!room.players.some((p) => p.connected)) {
       clearTimeout(room.timer);
+      clearTimeout(room.countdownTimer);
       rooms.delete(room.code);
     }
   }, EMPTY_ROOM_TTL);
+}
+
+// אחרי הספירה לאחור: מי שיצא בינתיים לא משתתף, ואם לא נשארו מספיק - חוזרים ללובי
+function beginGame(room) {
+  if (room.status !== 'countdown' || !rooms.has(room.code)) return;
+  const game = GAMES[room.gameId];
+  const api = apiFor(room);
+  room.game.participants = room.game.participants.filter((id) => api.isConnected(id));
+  room.status = 'game';
+  if (room.game.participants.length < game.minPlayers) {
+    room.status = 'lobby';
+    room.game = null;
+  } else {
+    try {
+      game.start(room, api);
+    } catch (e) {
+      console.error(e);
+      api.clearTimer();
+      room.status = 'lobby';
+      room.game = null;
+    }
+  }
+  broadcast(room);
 }
 
 function sanitizeProfile({ name, emoji }) {
@@ -226,6 +252,7 @@ export function registerSocket(io, socket) {
     socket.data.code = null;
     if (room.players.length === 0) {
       clearTimeout(room.timer);
+      clearTimeout(room.countdownTimer);
       rooms.delete(room.code);
       return;
     }
@@ -244,19 +271,15 @@ export function registerSocket(io, socket) {
     if (connected.length < game.minPlayers) {
       return ack?.({ error: `צריך לפחות ${game.minPlayers} שחקנים למשחק הזה` });
     }
+    if (room.status === 'countdown') return ack?.({ error: 'המשחק כבר מתחיל…' });
     api.clearTimer();
     room.players.forEach((p) => (p.score = 0));
     room.gameId = gameId;
     room.settings = game.sanitize(settings || {}, connected.length);
-    room.status = 'game';
+    room.status = 'countdown';
     room.game = { participants: connected.map((p) => p.id) };
-    try {
-      game.start(room, api);
-    } catch (e) {
-      console.error(e);
-      room.status = 'lobby';
-      return ack?.({ error: 'שגיאה בהפעלת המשחק' });
-    }
+    room.startsAt = Date.now() + COUNTDOWN_MS;
+    room.countdownTimer = setTimeout(() => beginGame(room), COUNTDOWN_MS);
     ack?.({ ok: true });
     broadcast(room);
   });
@@ -265,6 +288,7 @@ export function registerSocket(io, socket) {
     const { room, pid, api } = ctx();
     if (!room || room.hostId !== pid) return;
     api.clearTimer();
+    clearTimeout(room.countdownTimer);
     room.status = 'lobby';
     room.game = null;
     broadcast(room);

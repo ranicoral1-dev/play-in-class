@@ -4,6 +4,7 @@ import { GAME_META } from '../lib.js';
 import { useRoom, Avatar } from './ui.jsx';
 import Lobby from './Lobby.jsx';
 import Final from './Final.jsx';
+import Countdown from './Countdown.jsx';
 import WouldYouRather from '../games/WouldYouRather.jsx';
 import Wordle from '../games/Wordle.jsx';
 import Party from '../games/Party.jsx';
@@ -31,7 +32,7 @@ export default function Room() {
       <RoomHeader tracker={tracker} onEditProfile={() => setEditing(true)} />
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_280px]">
         <main className="min-w-0">
-          {state.status === 'lobby' && <Lobby />}
+          {(state.status === 'lobby' || state.status === 'countdown') && <Lobby />}
           {state.status === 'final' && <Final />}
           {state.status === 'game' &&
             (spectator ? (
@@ -51,6 +52,7 @@ export default function Room() {
           <Chat tracker={tracker} />
         </div>
       </div>
+      {state.status === 'countdown' && <Countdown />}
       {editing && <ProfileModal onClose={() => setEditing(false)} />}
     </div>
   );
