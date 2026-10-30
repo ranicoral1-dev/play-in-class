@@ -299,6 +299,24 @@ export const GAME_META = {
       { key: 'pick', label: 'בחירת תשובה', def: 45 },
     ],
   },
+  roulette: {
+    name: 'רולטת תמונות',
+    emoji: '📸',
+    genres: ['חברתי', 'ניחושים'],
+    color: 'from-orange-400 to-pink-600',
+    desc: 'כל אחד שולח תמונות מהגלריה - אקראיות או שבחר. מוגרלות תמונות מכל מה שנשלח, וכולם מנחשים של מי כל תמונה!',
+    minPlayers: 3,
+    settings: [
+      { key: 'random', label: 'מצב משחק', type: 'toggle', on: '🎲 תמונות אקראיות', off: '🖼️ בוחרים תמונות', def: () => true },
+      { key: 'perPlayer', label: 'כמה תמונות כל אחד שולח', type: 'number', min: 1, max: 10, def: () => 3 },
+      { key: 'show', label: 'כמה תמונות מראים', type: 'number', min: 1, max: 100, def: () => 10 },
+    ],
+    note: 'תמונות אקראיות: בוחרים את כל הגלריה (או הרבה תמונות) והמשחק מגריל מהן - אפשר להגריל מחדש עד שמרוצים. +1 לכל ניחוש נכון, ועוד +1 למי שניחש נכון ראשון.',
+    timers: [
+      { key: 'collect', label: 'בחירת תמונות', def: 120 },
+      { key: 'guess', label: 'ניחוש של מי התמונה', def: 30 },
+    ],
+  },
 };
 
 const FINAL_FORMS = { כ: 'ך', מ: 'ם', נ: 'ן', פ: 'ף', צ: 'ץ' };

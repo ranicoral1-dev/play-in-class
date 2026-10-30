@@ -15,7 +15,7 @@ const io = new Server(server, {
   cors: { origin: process.env.CLIENT_ORIGIN || '*' },
   pingInterval: 10000,
   pingTimeout: 8000,
-  maxHttpBufferSize: 6e6, // תמונות של צור ריל
+  maxHttpBufferSize: 12e6, // תמונות של צור ריל ורולטת תמונות
 });
 
 app.get('/health', (req, res) => res.json({ ok: true }));

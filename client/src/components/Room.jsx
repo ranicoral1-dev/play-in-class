@@ -20,11 +20,12 @@ import Odd from '../games/Odd.jsx';
 import Reel from '../games/Reel.jsx';
 import Coin from '../games/Coin.jsx';
 import About from '../games/About.jsx';
+import Roulette from '../games/Roulette.jsx';
 import Chat, { useChatTracker, Badges } from './Chat.jsx';
 import { ProfileModal } from './Profile.jsx';
 import { isMuted, setMuted } from '../sound.js';
 
-const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town, war: War, alias: Alias, odd: Odd, reel: Reel, coin: Coin, about: About };
+const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town, war: War, alias: Alias, odd: Odd, reel: Reel, coin: Coin, about: About, roulette: Roulette };
 
 export default function Room() {
   const { state } = useRoom();
