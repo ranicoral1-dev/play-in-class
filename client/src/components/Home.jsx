@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { emit, getPlayerId, loadProfile, saveProfile } from '../socket.js';
 import { EMOJIS, GAME_META } from '../lib.js';
+import { ProfileFields } from './Profile.jsx';
 
 export default function Home({ showToast }) {
   const saved = loadProfile();
@@ -43,35 +44,7 @@ export default function Home({ showToast }) {
       </header>
 
       <div className="card w-full max-w-md animate-rise" style={{ animationDelay: '.1s' }}>
-        <label className="label">השם שלי</label>
-        <input
-          className="input font-display"
-          value={name}
-          maxLength={16}
-          placeholder="למשל: נועה"
-          onChange={(e) => setName(e.target.value)}
-        />
-
-        <label className="label mt-5">התמונה שלי</label>
-        <div className="mb-1 flex items-center gap-3">
-          <span className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-amber-100 to-pink-100 text-4xl shadow-inner">
-            {emoji}
-          </span>
-          <span className="text-sm text-indigo-400">בחרו אימוג׳י שייצג אתכם</span>
-        </div>
-        <div className="mt-2 grid max-h-36 grid-cols-8 gap-1.5 overflow-y-auto scrollbar-thin">
-          {EMOJIS.map((e) => (
-            <button
-              key={e}
-              onClick={() => setEmoji(e)}
-              className={`aspect-square rounded-xl text-2xl transition hover:scale-110 ${
-                e === emoji ? 'bg-sun shadow-[0_3px_0_#c99a00]' : 'bg-indigo-50 hover:bg-indigo-100'
-              }`}
-            >
-              {e}
-            </button>
-          ))}
-        </div>
+        <ProfileFields name={name} setName={setName} emoji={emoji} setEmoji={setEmoji} />
 
         <div className="mt-6 grid gap-3">
           {mode !== 'join' ? (

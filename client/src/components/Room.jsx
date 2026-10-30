@@ -13,7 +13,8 @@ import Quote from '../games/Quote.jsx';
 import Complete from '../games/Complete.jsx';
 import Poker from '../games/Poker.jsx';
 import Town from '../games/Town.jsx';
-import Chat from './Chat.jsx';
+import Chat, { useChatTracker, Badges } from './Chat.jsx';
+import { ProfileModal } from './Profile.jsx';
 
 const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town };
 
@@ -22,10 +23,12 @@ export default function Room() {
   const me = state.players.find((p) => p.id === state.me);
   const spectator = state.status === 'game' && !me?.inGame;
   const GameComp = GAME_COMPONENTS[state.gameId];
+  const tracker = useChatTracker();
+  const [editing, setEditing] = useState(false);
 
   return (
     <div className="mx-auto max-w-6xl px-3 pb-10 pt-4 sm:px-6">
-      <RoomHeader />
+      <RoomHeader tracker={tracker} onEditProfile={() => setEditing(true)} />
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_280px]">
         <main className="min-w-0">
           {state.status === 'lobby' && <Lobby />}
@@ -44,17 +47,19 @@ export default function Room() {
             ))}
         </main>
         <div className="h-fit space-y-4 lg:sticky lg:top-4">
-          <Roster />
-          <Chat />
+          <Roster onEditProfile={() => setEditing(true)} />
+          <Chat tracker={tracker} />
         </div>
       </div>
+      {editing && <ProfileModal onClose={() => setEditing(false)} />}
     </div>
   );
 }
 
-function RoomHeader() {
+function RoomHeader({ tracker, onEditProfile }) {
   const { state, leave, showToast } = useRoom();
   const isHost = state.hostId === state.me;
+  const me = state.players.find((p) => p.id === state.me);
 
   function copyLink() {
     const url = `${location.origin}${location.pathname}?code=${state.code}`;
@@ -80,7 +85,26 @@ function RoomHeader() {
         </span>
         <span className="text-lg opacity-60 group-hover:opacity-100">📋</span>
       </button>
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          title="שינוי שם ותמונה"
+          className="flex items-center gap-1.5 rounded-xl bg-white/15 py-1 pl-3 pr-1 text-sm font-bold hover:bg-white/25"
+          onClick={onEditProfile}
+        >
+          <Avatar emoji={me?.emoji} size="sm" />
+          <span className="max-w-[7rem] truncate">{me?.name}</span>
+          <span className="opacity-70">✏️</span>
+        </button>
+        {tracker.showButton && (
+          <button
+            title="מעבר לצ׳אט"
+            className="flex items-center gap-1.5 rounded-xl bg-white/15 px-3 py-2 text-sm font-bold hover:bg-white/25"
+            onClick={tracker.goTo}
+          >
+            💬 צ׳אט
+            <Badges unread={tracker.unread} mentions={tracker.mentions} />
+          </button>
+        )}
         {isHost && state.status === 'game' && (
           <button
             className="rounded-xl bg-white/15 px-3 py-2 text-sm font-bold hover:bg-white/25"
@@ -100,7 +124,7 @@ function RoomHeader() {
   );
 }
 
-function Roster() {
+function Roster({ onEditProfile }) {
   const { state } = useRoom();
   const [open, setOpen] = useState(false);
   const isHost = state.hostId === state.me;
@@ -129,6 +153,11 @@ function Roster() {
             <Avatar emoji={p.emoji} size="sm" dim={!p.connected} />
             <span className={`flex-1 truncate font-semibold ${p.connected ? '' : 'text-slate-400'}`}>
               {p.name}
+              {p.id === state.me && (
+                <button title="שינוי שם ותמונה" className="mr-1 text-sm opacity-60 hover:opacity-100" onClick={onEditProfile}>
+                  ✏️
+                </button>
+              )}
               {p.id === state.hostId && <span title="מארח החדר"> 👑</span>}
               {!p.connected && <span className="text-xs"> (מנותק)</span>}
             </span>

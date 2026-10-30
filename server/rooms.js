@@ -135,6 +135,23 @@ function sanitizeProfile({ name, emoji }) {
   };
 }
 
+// מי תויג בהודעה עם @שם (השם צריך להיגמר בסוף מילה, כדי ש-@דן לא יתפוס את דניאל)
+function findMentions(room, text) {
+  const ids = [];
+  for (const p of room.players) {
+    const tag = '@' + p.name;
+    let i = text.indexOf(tag);
+    while (i !== -1) {
+      if (!/[\p{L}\p{N}]/u.test(text[i + tag.length] || '')) {
+        ids.push(p.id);
+        break;
+      }
+      i = text.indexOf(tag, i + 1);
+    }
+  }
+  return ids;
+}
+
 // ---------- אירועי סוקט ----------
 export function registerSocket(io, socket) {
   IO = io;
@@ -302,13 +319,31 @@ export function registerSocket(io, socket) {
     const now = Date.now();
     if (now - (player.lastChat || 0) < CHAT_GAP_MS) return ack?.({ error: 'לאט לאט 🙂' });
     player.lastChat = now;
-    const m = { id: ++room.chatSeq, pid, name: player.name, emoji: player.emoji, text: msg };
+    const m = {
+      id: ++room.chatSeq,
+      pid,
+      name: player.name,
+      emoji: player.emoji,
+      text: msg,
+      mentions: findMentions(room, msg),
+    };
     room.chat.push(m);
     if (room.chat.length > CHAT_MAX) room.chat.shift();
     for (const p of room.players) {
       if (p.connected && p.socketId) IO.to(p.socketId).emit('chat', m);
     }
     ack?.({ ok: true });
+  });
+
+  // שינוי שם ואימוג'י - אפשר גם באמצע משחק
+  socket.on('profile', (data = {}, ack) => {
+    const { room, pid } = ctx();
+    const player = room && getPlayer(room, pid);
+    if (!player) return ack?.({ error: 'אין חדר' });
+    const profile = sanitizeProfile(data);
+    Object.assign(player, profile);
+    ack?.({ ok: true, ...profile });
+    broadcast(room);
   });
 
   socket.on('disconnect', () => {
