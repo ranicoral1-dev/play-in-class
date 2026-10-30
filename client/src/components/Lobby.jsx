@@ -14,7 +14,7 @@ export default function Lobby() {
   function settingsFor(id) {
     const meta = GAME_META[id];
     const out = {};
-    for (const s of meta.settings) out[s.key] = values[id]?.[s.key] ?? s.def(count);
+    for (const s of meta.settings) out[s.key] = values[id]?.[s.key] ?? (s.type === 'textarea' ? loadText(id, s.key) : null) ?? s.def(count);
     out.timed = values[id]?.timed ?? true;
     out.times = {};
     for (const t of meta.timers) out.times[t.key] = values[id]?.times?.[t.key] ?? t.def;
@@ -92,9 +92,22 @@ export default function Lobby() {
             {GAME_META[selected].settings.map((s) => {
               const v = settingsFor(selected)[s.key];
               return (
-                <div key={s.key}>
+                <div key={s.key} className={s.type === 'textarea' ? 'sm:col-span-2' : ''}>
                   <label className="label">{s.label}</label>
-                  {s.type === 'number' ? (
+                  {s.type === 'textarea' ? (
+                    <>
+                      <textarea
+                        className="input min-h-[110px] text-base"
+                        placeholder={s.placeholder}
+                        value={v}
+                        onChange={(e) => {
+                          setValue(selected, s.key, e.target.value);
+                          saveText(selected, s.key, e.target.value);
+                        }}
+                      />
+                      {s.hint && <p className="mt-1 text-xs text-indigo-400">{s.hint}</p>}
+                    </>
+                  ) : s.type === 'number' ? (
                     <Stepper value={v} min={s.min} max={s.max} step={s.step} onChange={(x) => setValue(selected, s.key, x)} />
                   ) : (
                     <div className="grid grid-cols-2 gap-2 rounded-2xl bg-indigo-50 p-1.5">
@@ -129,6 +142,23 @@ export default function Lobby() {
       )}
     </div>
   );
+}
+
+// טקסט חופשי (למשל מילים שהמארח הוסיף) נשמר במכשיר, כדי שלא יצטרכו להקליד שוב
+function loadText(id, key) {
+  try {
+    return localStorage.getItem(`setting:${id}:${key}`);
+  } catch {
+    return null;
+  }
+}
+
+function saveText(id, key, v) {
+  try {
+    localStorage.setItem(`setting:${id}:${key}`, v);
+  } catch {
+    /* לא קריטי */
+  }
 }
 
 function TimeSettings({ timers, settings, onTimed, onTime }) {

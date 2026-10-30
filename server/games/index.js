@@ -8,6 +8,8 @@ import complete from './complete.js';
 import poker from './poker.js';
 import town from './town.js';
 import war from './war.js';
+import alias from './alias.js';
+import odd from './odd.js';
 
 export const GAMES = {
   [wyr.id]: wyr,
@@ -20,4 +22,6 @@ export const GAMES = {
   [poker.id]: poker,
   [town.id]: town,
   [war.id]: war,
+  [alias.id]: alias,
+  [odd.id]: odd,
 };

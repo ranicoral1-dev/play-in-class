@@ -15,10 +15,12 @@ import Complete from '../games/Complete.jsx';
 import Poker from '../games/Poker.jsx';
 import Town from '../games/Town.jsx';
 import War from '../games/War.jsx';
+import Alias from '../games/Alias.jsx';
+import Odd from '../games/Odd.jsx';
 import Chat, { useChatTracker, Badges } from './Chat.jsx';
 import { ProfileModal } from './Profile.jsx';
 
-const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town, war: War };
+const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town, war: War, alias: Alias, odd: Odd };
 
 export default function Room() {
   const { state } = useRoom();

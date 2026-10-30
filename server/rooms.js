@@ -105,6 +105,11 @@ function apiFor(room) {
 }
 
 // ---------- תצוגה לכל שחקן ----------
+// מילים שהמארח הוסיף נשארות סודיות - אחרת כולם היו רואים אותן
+function publicSettings({ customWords, ...rest }) {
+  return rest;
+}
+
 function viewFor(room, pid) {
   const game = GAMES[room.gameId];
   return {
@@ -113,7 +118,7 @@ function viewFor(room, pid) {
     hostId: room.hostId,
     status: room.status,
     gameId: room.gameId,
-    settings: room.settings,
+    settings: publicSettings(room.settings),
     players: room.players.map((p) => ({
       id: p.id,
       name: p.name,
