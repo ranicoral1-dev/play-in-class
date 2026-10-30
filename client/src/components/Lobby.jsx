@@ -115,6 +115,7 @@ export default function Lobby() {
               );
             })}
           </div>
+          {GAME_META[selected].note && <p className="mt-3 text-sm text-indigo-500">{GAME_META[selected].note}</p>}
           <TimeSettings
             timers={GAME_META[selected].timers}
             settings={settingsFor(selected)}

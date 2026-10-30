@@ -12,8 +12,10 @@ import SameWord from '../games/SameWord.jsx';
 import Quote from '../games/Quote.jsx';
 import Complete from '../games/Complete.jsx';
 import Poker from '../games/Poker.jsx';
+import Town from '../games/Town.jsx';
+import Chat from './Chat.jsx';
 
-const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker };
+const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town };
 
 export default function Room() {
   const { state } = useRoom();
@@ -41,7 +43,10 @@ export default function Room() {
               GameComp && state.game && <GameComp g={state.game} key={state.gameId} />
             ))}
         </main>
-        <Roster />
+        <div className="h-fit space-y-4 lg:sticky lg:top-4">
+          <Roster />
+          <Chat />
+        </div>
       </div>
     </div>
   );
@@ -104,7 +109,7 @@ function Roster() {
   const online = state.players.filter((p) => p.connected).length;
 
   return (
-    <aside className="card h-fit p-4 lg:sticky lg:top-4">
+    <aside className="card p-4">
       <button className="flex w-full items-center justify-between lg:cursor-default" onClick={() => setOpen((o) => !o)}>
         <h3 className="font-display text-xl">
           {showScores ? '🏆 ניקוד' : '👥 שחקנים'}{' '}

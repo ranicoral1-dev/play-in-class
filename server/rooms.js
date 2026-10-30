@@ -6,6 +6,8 @@ let IO = null;
 const MAX_PLAYERS = 24;
 const EMPTY_ROOM_TTL = 30 * 60 * 1000;
 const REVEAL_SEC = 15;
+const CHAT_MAX = 100;
+const CHAT_GAP_MS = 400;
 
 function genCode() {
   let code;
@@ -159,6 +161,7 @@ export function registerSocket(io, socket) {
     socket.data.pid = pid;
     socket.join(room.code);
     clearTimeout(room.cleanupTimer);
+    socket.emit('chat:history', room.chat);
   }
 
   socket.on('create', (data = {}, ack) => {
@@ -175,6 +178,8 @@ export function registerSocket(io, socket) {
       game: null,
       timer: null,
       deadline: null,
+      chat: [],
+      chatSeq: 0,
     };
     rooms.set(code, room);
     attach(room, pid, sanitizeProfile(data));
@@ -286,6 +291,24 @@ export function registerSocket(io, socket) {
       ack?.({ error: 'משהו השתבש' });
     }
     broadcast(room);
+  });
+
+  // צ'אט של החדר - פעיל בלובי ובכל המשחקים
+  socket.on('chat:send', (text, ack) => {
+    const { room, pid } = ctx();
+    const player = room && getPlayer(room, pid);
+    const msg = cleanText(text, 200);
+    if (!player || !msg) return ack?.({ error: 'אין חדר' });
+    const now = Date.now();
+    if (now - (player.lastChat || 0) < CHAT_GAP_MS) return ack?.({ error: 'לאט לאט 🙂' });
+    player.lastChat = now;
+    const m = { id: ++room.chatSeq, pid, name: player.name, emoji: player.emoji, text: msg };
+    room.chat.push(m);
+    if (room.chat.length > CHAT_MAX) room.chat.shift();
+    for (const p of room.players) {
+      if (p.connected && p.socketId) IO.to(p.socketId).emit('chat', m);
+    }
+    ack?.({ ok: true });
   });
 
   socket.on('disconnect', () => {

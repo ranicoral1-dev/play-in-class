@@ -126,6 +126,23 @@ export const GAME_META = {
     ],
     timers: [{ key: 'turn', label: 'זמן לכל תור', def: 30 }],
   },
+  town: {
+    name: 'עיירה',
+    emoji: '🏘️',
+    color: 'from-slate-700 to-indigo-900',
+    desc: 'כל אחד מקבל תפקיד סודי: מתחזים מחסלים, שוטרים עוצרים, חובש מרפא, מנעולן משחרר מהכלא - ומי ששורד מרוויח.',
+    minPlayers: 3,
+    settings: [
+      { key: 'rounds', label: 'מספר סיבובים', type: 'number', min: 1, max: 20, def: () => 3 },
+      { key: 'imposters', label: '🔪 מתחזים', type: 'number', min: 1, max: 5, def: (n) => (n >= 9 ? 2 : 1) },
+      { key: 'police', label: '👮 שוטרים', type: 'number', min: 1, max: 5, def: (n) => (n >= 9 ? 2 : 1) },
+      { key: 'lockers', label: '🔑 מנעולנים', type: 'number', min: 0, max: 5, def: (n) => (n >= 5 ? 1 : 0) },
+      { key: 'medics', label: '🩺 חובשים', type: 'number', min: 0, max: 5, def: (n) => (n >= 4 ? 1 : 0) },
+      { key: 'jesters', label: '🤡 ליצנים', type: 'number', min: 0, max: 5, def: (n) => (n >= 7 ? 1 : 0) },
+    ],
+    note: 'כל מי שלא קיבל תפקיד - אזרח 🧑. אם יש יותר תפקידים משחקנים, מורידים אוטומטית.',
+    timers: [{ key: 'night', label: 'בחירה בלילה', def: 60 }],
+  },
 };
 
 const FINAL_FORMS = { כ: 'ך', מ: 'ם', נ: 'ן', פ: 'ף', צ: 'ץ' };

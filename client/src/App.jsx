@@ -9,6 +9,7 @@ export default function App() {
   const [receivedAt, setReceivedAt] = useState(0);
   const [connected, setConnected] = useState(socket.connected);
   const [toast, setToast] = useState(null);
+  const [chat, setChat] = useState([]);
 
   const showToast = useCallback((msg) => {
     setToast({ msg, id: Date.now() });
@@ -39,21 +40,28 @@ export default function App() {
       }
     };
     const onDisconnect = () => setConnected(false);
+    const onChatHistory = (list) => setChat(list || []);
+    const onChat = (m) => setChat((old) => [...old, m].slice(-100));
     const onKicked = () => {
       sessionStorage.removeItem('room');
       setState(null);
+      setChat([]);
       showToast('הוצאת מהחדר 👋');
     };
     socket.on('state', onState);
     socket.on('connect', onConnect);
     socket.on('disconnect', onDisconnect);
     socket.on('kicked', onKicked);
+    socket.on('chat:history', onChatHistory);
+    socket.on('chat', onChat);
     if (socket.connected) onConnect();
     return () => {
       socket.off('state', onState);
       socket.off('connect', onConnect);
       socket.off('disconnect', onDisconnect);
       socket.off('kicked', onKicked);
+      socket.off('chat:history', onChatHistory);
+      socket.off('chat', onChat);
     };
   }, [showToast]);
 
@@ -70,11 +78,12 @@ export default function App() {
     socket.emit('leave');
     sessionStorage.removeItem('room');
     setState(null);
+    setChat([]);
   }, []);
 
   const ctx = useMemo(
-    () => (state ? { state, receivedAt, act, showToast, leave } : null),
-    [state, receivedAt, act, showToast, leave],
+    () => (state ? { state, receivedAt, act, showToast, leave, chat } : null),
+    [state, receivedAt, act, showToast, leave, chat],
   );
 
   return (
