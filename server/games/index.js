@@ -13,6 +13,8 @@ import odd from './odd.js';
 import reel from './reel.js';
 import coin from './coin.js';
 import about from './about.js';
+import dict from './dict.js';
+import eretz from './eretz.js';
 
 export const GAMES = {
   [wyr.id]: wyr,
@@ -30,4 +32,6 @@ export const GAMES = {
   [reel.id]: reel,
   [coin.id]: coin,
   [about.id]: about,
+  [dict.id]: dict,
+  [eretz.id]: eretz,
 };
