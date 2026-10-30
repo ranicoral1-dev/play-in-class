@@ -5,9 +5,12 @@ const URL = import.meta.env.VITE_SERVER_URL || undefined;
 
 export const socket = io(URL, { transports: ['websocket', 'polling'] });
 
-export function emit(event, data) {
+// כתובת של קובץ שהשרת מגיש (למשל תמונות של צור ריל)
+export const serverUrl = (path) => (URL || '').replace(/\/$/, '') + path;
+
+export function emit(event, data, timeout = 8000) {
   return new Promise((resolve) => {
-    socket.timeout(8000).emit(event, data, (err, res) => {
+    socket.timeout(timeout).emit(event, data, (err, res) => {
       resolve(err ? { error: 'אין חיבור לשרת, נסו שוב' } : res || {});
     });
   });

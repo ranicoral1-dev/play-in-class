@@ -224,6 +224,81 @@ export const GAME_META = {
       { key: 'vote', label: 'הצבעה', def: 45 },
     ],
   },
+  reel: {
+    name: 'צור ריל',
+    emoji: '🎬',
+    genres: ['יצירתי', 'חברתי'],
+    color: 'from-fuchsia-500 to-purple-700',
+    desc: 'כל סיבוב יוצרים מים או ריל - מתמונות שלכם, תמונות שמדביקים או המדבקות והתבניות של המשחק. אחר כך כולם מדרגים 1-10.',
+    minPlayers: 2,
+    settings: [
+      { key: 'rounds', label: 'מספר סיבובים', type: 'number', min: 1, max: 20, def: () => 3 },
+      { key: 'withCategory', label: 'קטגוריה', type: 'toggle', on: '🎯 עם קטגוריה', off: '🤪 חופשי', def: () => true },
+      {
+        key: 'customCategories',
+        label: 'קטגוריות משלנו (לא חובה) - שורה לכל קטגוריה',
+        type: 'textarea',
+        placeholder: 'כשהמורה מאחר\nהאוכל בקפיטריה',
+        hint: 'הקטגוריות שלכם יוצאות קודם, ואחריהן של המשחק. עובד רק ״עם קטגוריה״.',
+        def: () => '',
+      },
+    ],
+    note: 'הממים אנונימיים בזמן הדירוג, ואי אפשר לדרג את של עצמך. ניקוד לפי הממוצע: מקום ראשון מקבל הכי הרבה.',
+    timers: [
+      { key: 'create', label: 'יצירת המים', def: 180 },
+      { key: 'vote', label: 'דירוג', def: 90 },
+    ],
+  },
+  coin: {
+    name: 'מטבע הסודות',
+    emoji: '🪙',
+    genres: ['חברתי', 'בלוף'],
+    color: 'from-yellow-400 to-amber-600',
+    desc: 'הבוחר מקבל שאלה סודית כמו ״מי יעשה הכל בשביל שקל?״ ועונה בשם של מישהו. כולם רואים את השם - לא את השאלה. ואז עץ או פלי: צדק - השאלה נשארת סוד, טעה - כולם רואים!',
+    minPlayers: 2,
+    settings: [
+      { key: 'rounds', label: 'כמה פעמים כל אחד בוחר', type: 'number', min: 1, max: 10, def: () => 2 },
+      { key: 'builtin', label: 'אילו שאלות', type: 'toggle', on: 'שלנו + של המשחק', off: 'רק שלנו', def: () => true },
+      {
+        key: 'customWords',
+        label: 'השאלות שלנו (לא חובה) - שורה לכל שאלה',
+        type: 'textarea',
+        placeholder: 'מי הכי סביר שיאחר לטיול?\nמי שר במקלחת הכי חזק?',
+        hint: 'אף אחד חוץ מכם לא רואה את הרשימה.',
+        def: () => '',
+      },
+    ],
+    note: 'אפשר לבחור גם בעצמך. +1 למי שנבחר בכל פעם.',
+    timers: [
+      { key: 'choose', label: 'בחירת שחקן', def: 30 },
+      { key: 'call', label: 'בחירת עץ או פלי', def: 15 },
+    ],
+  },
+  about: {
+    name: 'מה חושבים עליך',
+    emoji: '🪞',
+    genres: ['חברתי', 'כתיבה'],
+    color: 'from-pink-400 to-violet-600',
+    desc: 'כולם עונים על שאלה על שחקן אחד - ״אם הוא היה סרט, איזה סרט?״. התשובות מופיעות בלי שמות, והוא בוחר אחת כדי לגלות מי כתב אותה. כל השאר נשארות סוד.',
+    minPlayers: 3,
+    settings: [
+      { key: 'rounds', label: 'כמה פעמים כל אחד במרכז', type: 'number', min: 1, max: 10, def: () => 1 },
+      { key: 'builtin', label: 'אילו שאלות', type: 'toggle', on: 'שלנו + של המשחק', off: 'רק שלנו', def: () => true },
+      {
+        key: 'customWords',
+        label: 'השאלות שלנו (לא חובה) - שורה לכל שאלה, {name} = השם של השחקן',
+        type: 'textarea',
+        placeholder: 'אם {name} היה/תה שיר, איזה שיר?\nמה {name} עושה בהפסקה?',
+        hint: 'אף אחד חוץ מכם לא רואה את הרשימה.',
+        def: () => '',
+      },
+    ],
+    note: 'מי שהשאלה עליו רואה אותה רק כשהתשובות נחשפות. +2 לכותב של התשובה שנבחרה.',
+    timers: [
+      { key: 'write', label: 'כתיבת תשובה', def: 60 },
+      { key: 'pick', label: 'בחירת תשובה', def: 45 },
+    ],
+  },
 };
 
 const FINAL_FORMS = { כ: 'ך', מ: 'ם', נ: 'ן', פ: 'ף', צ: 'ץ' };

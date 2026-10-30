@@ -22,6 +22,13 @@ function getPlayer(room, pid) {
   return room.players.find((p) => p.id === pid);
 }
 
+// קבצים שמשחק מגיש בכתובת נפרדת (למשל תמונות בצור ריל) - לא נשלחים בתוך המצב
+export function roomFile(code, token) {
+  const room = rooms.get(code);
+  if (!room || room.status === 'lobby') return null;
+  return GAMES[room.gameId]?.file?.(room, token) || null;
+}
+
 // ---------- API שניתן למודולי המשחקים ----------
 function makeApi(room) {
   const api = {

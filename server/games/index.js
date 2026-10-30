@@ -10,6 +10,9 @@ import town from './town.js';
 import war from './war.js';
 import alias from './alias.js';
 import odd from './odd.js';
+import reel from './reel.js';
+import coin from './coin.js';
+import about from './about.js';
 
 export const GAMES = {
   [wyr.id]: wyr,
@@ -24,4 +27,7 @@ export const GAMES = {
   [war.id]: war,
   [alias.id]: alias,
   [odd.id]: odd,
+  [reel.id]: reel,
+  [coin.id]: coin,
+  [about.id]: about,
 };
