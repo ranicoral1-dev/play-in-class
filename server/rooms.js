@@ -52,6 +52,23 @@ function makeApi(room) {
       room.deadline = null;
       room.timerCb = null;
     },
+    // משחקים בזמן אמת: פעולה שרצה כל ms מילישניות ומסנכרנת את כולם, עד שהמשחק נגמר
+    setTick(ms, cb) {
+      api.clearTick();
+      room.tick = setInterval(() => {
+        if (room.status !== 'game' || !rooms.has(room.code)) return api.clearTick();
+        try {
+          cb();
+        } catch (e) {
+          console.error('tick error', e);
+        }
+        broadcast(room);
+      }, ms);
+    },
+    clearTick() {
+      clearInterval(room.tick);
+      room.tick = null;
+    },
     // זמן השלב לפי הגדרות המארח, או null כשמשחקים בלי זמן
     time(key) {
       return room.settings.timed ? room.settings.times[key] : null;
@@ -75,6 +92,7 @@ function makeApi(room) {
     },
     endGame() {
       api.clearTimer();
+      api.clearTick();
       room.status = 'final';
     },
   };
@@ -126,6 +144,7 @@ function scheduleCleanup(room) {
     if (!room.players.some((p) => p.connected)) {
       clearTimeout(room.timer);
       clearTimeout(room.countdownTimer);
+      clearInterval(room.tick);
       rooms.delete(room.code);
     }
   }, EMPTY_ROOM_TTL);
@@ -147,6 +166,7 @@ function beginGame(room) {
     } catch (e) {
       console.error(e);
       api.clearTimer();
+      api.clearTick();
       room.status = 'lobby';
       room.game = null;
     }
@@ -253,6 +273,7 @@ export function registerSocket(io, socket) {
     if (room.players.length === 0) {
       clearTimeout(room.timer);
       clearTimeout(room.countdownTimer);
+      clearInterval(room.tick);
       rooms.delete(room.code);
       return;
     }
@@ -273,6 +294,7 @@ export function registerSocket(io, socket) {
     }
     if (room.status === 'countdown') return ack?.({ error: 'המשחק כבר מתחיל…' });
     api.clearTimer();
+    api.clearTick();
     room.players.forEach((p) => (p.score = 0));
     room.gameId = gameId;
     room.settings = game.sanitize(settings || {}, connected.length);
@@ -288,6 +310,7 @@ export function registerSocket(io, socket) {
     const { room, pid, api } = ctx();
     if (!room || room.hostId !== pid) return;
     api.clearTimer();
+    api.clearTick();
     clearTimeout(room.countdownTimer);
     room.status = 'lobby';
     room.game = null;

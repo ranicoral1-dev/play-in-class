@@ -7,6 +7,7 @@ import quote from './quote.js';
 import complete from './complete.js';
 import poker from './poker.js';
 import town from './town.js';
+import war from './war.js';
 
 export const GAMES = {
   [wyr.id]: wyr,
@@ -18,4 +19,5 @@ export const GAMES = {
   [complete.id]: complete,
   [poker.id]: poker,
   [town.id]: town,
+  [war.id]: war,
 };

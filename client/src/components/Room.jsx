@@ -14,10 +14,11 @@ import Quote from '../games/Quote.jsx';
 import Complete from '../games/Complete.jsx';
 import Poker from '../games/Poker.jsx';
 import Town from '../games/Town.jsx';
+import War from '../games/War.jsx';
 import Chat, { useChatTracker, Badges } from './Chat.jsx';
 import { ProfileModal } from './Profile.jsx';
 
-const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town };
+const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town, war: War };
 
 export default function Room() {
   const { state } = useRoom();
