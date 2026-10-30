@@ -4,6 +4,7 @@ import party from './party.js';
 import story from './story.js';
 import sameword from './sameword.js';
 import quote from './quote.js';
+import complete from './complete.js';
 
 export const GAMES = {
   [wyr.id]: wyr,
@@ -12,4 +13,5 @@ export const GAMES = {
   [story.id]: story,
   [sameword.id]: sameword,
   [quote.id]: quote,
+  [complete.id]: complete,
 };

@@ -10,8 +10,9 @@ import Party from '../games/Party.jsx';
 import Story from '../games/Story.jsx';
 import SameWord from '../games/SameWord.jsx';
 import Quote from '../games/Quote.jsx';
+import Complete from '../games/Complete.jsx';
 
-const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote };
+const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete };
 
 export default function Room() {
   const { state } = useRoom();

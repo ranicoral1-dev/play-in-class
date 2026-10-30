@@ -97,6 +97,22 @@ export const GAME_META = {
       { key: 'guess', label: 'ניחוש מי כתב מה', def: 120 },
     ],
   },
+  complete: {
+    name: 'המשך את המשפט',
+    emoji: '✏️',
+    color: 'from-lime-500 to-green-600',
+    desc: 'נותן המשפט משאיר מילים חסרות, כולם משלימים - ובוחרים את ההשלמה הכי טובה.',
+    minPlayers: 3,
+    settings: [
+      { key: 'rounds', label: 'מספר סיבובים', type: 'number', min: 1, max: 30, def: (n) => n },
+      { key: 'maxBlanks', label: 'מקסימום מילים חסרות', type: 'number', min: 1, max: 5, def: () => 2 },
+    ],
+    timers: [
+      { key: 'write', label: 'כתיבת המשפט', def: 60 },
+      { key: 'fill', label: 'השלמת המילים', def: 60 },
+      { key: 'vote', label: 'בחירת ההשלמה הכי טובה', def: 60 },
+    ],
+  },
 };
 
 const FINAL_FORMS = { כ: 'ך', מ: 'ם', נ: 'ן', פ: 'ף', צ: 'ץ' };
