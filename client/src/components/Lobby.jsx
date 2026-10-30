@@ -95,7 +95,7 @@ export default function Lobby() {
                 <div key={s.key}>
                   <label className="label">{s.label}</label>
                   {s.type === 'number' ? (
-                    <Stepper value={v} min={s.min} max={s.max} onChange={(x) => setValue(selected, s.key, x)} />
+                    <Stepper value={v} min={s.min} max={s.max} step={s.step} onChange={(x) => setValue(selected, s.key, x)} />
                   ) : (
                     <div className="grid grid-cols-2 gap-2 rounded-2xl bg-indigo-50 p-1.5">
                       {[true, false].map((opt) => (

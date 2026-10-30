@@ -113,6 +113,19 @@ export const GAME_META = {
       { key: 'vote', label: 'בחירת ההשלמה הכי טובה', def: 60 },
     ],
   },
+  poker: {
+    name: 'פוקר',
+    emoji: '🃏',
+    color: 'from-emerald-600 to-green-800',
+    desc: 'טקסס הולדם אמיתי: הנקודות הן כסף. מהמרים, מעלים, מקפלים - ומי שנשאר עם הכי הרבה כסף מנצח.',
+    minPlayers: 2,
+    settings: [
+      { key: 'hands', label: 'מספר ידיים', type: 'number', min: 1, max: 100, def: () => 15 },
+      { key: 'startChips', label: 'כסף התחלתי לכל שחקן', type: 'number', min: 100, max: 100000, step: 100, def: () => 1000 },
+      { key: 'bigBlind', label: 'ביג בליינד (הסמול הוא חצי)', type: 'number', min: 2, max: 10000, step: 2, def: () => 20 },
+    ],
+    timers: [{ key: 'turn', label: 'זמן לכל תור', def: 30 }],
+  },
 };
 
 const FINAL_FORMS = { כ: 'ך', מ: 'ם', נ: 'ן', פ: 'ף', צ: 'ץ' };
