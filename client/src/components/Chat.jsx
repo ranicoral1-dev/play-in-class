@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { emit } from '../socket.js';
+import { GAME_META } from '../lib.js';
 import { useRoom, Avatar } from './ui.jsx';
 
 const WIDE = '(min-width: 1024px)';
@@ -94,6 +95,7 @@ export default function Chat({ tracker }) {
   const listRef = useRef();
   const inputRef = useRef();
   const names = state.players.map((p) => p.name);
+  const closed = state.status === 'game' && GAME_META[state.gameId]?.noChat;
 
   useEffect(() => {
     const el = listRef.current;
@@ -202,7 +204,8 @@ export default function Chat({ tracker }) {
           <input
             ref={inputRef}
             className="input min-w-0 flex-1 py-2 text-base"
-            placeholder="כתבו הודעה… (@ לתיוג)"
+            placeholder={closed ? 'הצ׳אט סגור במשחק הזה 🤫' : 'כתבו הודעה… (@ לתיוג)'}
+            disabled={closed}
             maxLength={200}
             value={text}
             onChange={(e) => {
@@ -212,7 +215,7 @@ export default function Chat({ tracker }) {
             onSelect={(e) => setCaret(e.target.selectionStart ?? 0)}
             onKeyDown={onKeyDown}
           />
-          <button className="btn-primary shrink-0 px-4 py-2 text-base" disabled={!text.trim()}>
+          <button className="btn-primary shrink-0 px-4 py-2 text-base" disabled={closed || !text.trim()}>
             שליחה
           </button>
         </form>

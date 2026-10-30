@@ -76,6 +76,20 @@ function makeApi(room) {
       clearInterval(room.tick);
       room.tick = null;
     },
+    // טיימר נסתר: בלי ספירה לאחור אצל השחקנים (למשל כדי שלא יידעו מתי יופיע הירוק).
+    // אם המשחק נגמר או התחלף בינתיים - לא קורה כלום
+    later(ms, cb) {
+      const game = room.game;
+      setTimeout(() => {
+        if (room.status !== 'game' || room.game !== game || !rooms.has(room.code)) return;
+        try {
+          cb();
+        } catch (e) {
+          console.error('later error', e);
+        }
+        broadcast(room);
+      }, ms);
+    },
     // זמן השלב לפי הגדרות המארח, או null כשמשחקים בלי זמן
     time(key) {
       return room.settings.timed ? room.settings.times[key] : null;
@@ -375,6 +389,8 @@ export function registerSocket(io, socket) {
     const player = room && getPlayer(room, pid);
     const msg = cleanText(text, 200);
     if (!player || !msg) return ack?.({ error: 'אין חדר' });
+    // משחקים שבהם תיאום בצ'אט הורס את כל העניין (ספירה משותפת)
+    if (room.status === 'game' && GAMES[room.gameId]?.noChat) return ack?.({ error: 'הצ׳אט סגור במשחק הזה 🤫' });
     const now = Date.now();
     if (now - (player.lastChat || 0) < CHAT_GAP_MS) return ack?.({ error: 'לאט לאט 🙂' });
     player.lastChat = now;

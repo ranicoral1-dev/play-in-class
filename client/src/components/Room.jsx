@@ -22,11 +22,14 @@ import Coin from '../games/Coin.jsx';
 import About from '../games/About.jsx';
 import Dict from '../games/Dict.jsx';
 import Eretz from '../games/Eretz.jsx';
+import Fast from '../games/Fast.jsx';
+import Count from '../games/Count.jsx';
+import Auction from '../games/Auction.jsx';
 import Chat, { useChatTracker, Badges } from './Chat.jsx';
 import { ProfileModal } from './Profile.jsx';
 import { isMuted, setMuted } from '../sound.js';
 
-const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town, war: War, alias: Alias, odd: Odd, reel: Reel, coin: Coin, about: About, dict: Dict, eretz: Eretz };
+const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town, war: War, alias: Alias, odd: Odd, reel: Reel, coin: Coin, about: About, dict: Dict, eretz: Eretz, fast: Fast, count: Count, auction: Auction };
 
 export default function Room() {
   const { state } = useRoom();

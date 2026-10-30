@@ -105,7 +105,8 @@ export function Timer() {
 }
 
 // כותרת עליונה בכל משחק: שם, סיבוב, טיימר
-export function GameHeader({ title, round, totalRounds, children }) {
+// noTimer: בלי טיימר ובלי דילוג (במי יותר מהיר הספירה הייתה מגלה מתי יופיע הירוק)
+export function GameHeader({ title, round, totalRounds, noTimer = false, children }) {
   return (
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3 border-b-2 border-dashed border-indigo-100 pb-4">
       <div>
@@ -118,8 +119,8 @@ export function GameHeader({ title, round, totalRounds, children }) {
       </div>
       <div className="flex items-center gap-3">
         {children}
-        <Timer />
-        <SkipButton />
+        {!noTimer && <Timer />}
+        {!noTimer && <SkipButton />}
       </div>
     </div>
   );

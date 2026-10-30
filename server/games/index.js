@@ -15,6 +15,9 @@ import coin from './coin.js';
 import about from './about.js';
 import dict from './dict.js';
 import eretz from './eretz.js';
+import fast from './fast.js';
+import count from './count.js';
+import auction from './auction.js';
 
 export const GAMES = {
   [wyr.id]: wyr,
@@ -34,4 +37,7 @@ export const GAMES = {
   [about.id]: about,
   [dict.id]: dict,
   [eretz.id]: eretz,
+  [fast.id]: fast,
+  [count.id]: count,
+  [auction.id]: auction,
 };
