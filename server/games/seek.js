@@ -12,16 +12,78 @@ const START_COLORS = ['ff3b6b', '7b2ff7', '00c2ff', 'ffd23f', '2ec4b6', 'ff8a00'
 
 const MAX_SKIN_BYTES = 300 * 1024;
 
-// צורת בן האדם ביחידות גוף (רוחב 1, גובה 2) - חייבת להיות זהה ללקוח (client/src/games/Seek.jsx)
-const HEAD = { x: 0.5, y: 0.2, r: 0.17 };
-const LIMBS = [
-  [0.5, 0.3, 0.5, 0.45, 0.08],
-  [0.5, 0.55, 0.5, 1.0, 0.22],
-  [0.3, 0.5, 0.12, 1.02, 0.075],
-  [0.7, 0.5, 0.88, 1.02, 0.075],
-  [0.4, 1.1, 0.36, 1.88, 0.095],
-  [0.6, 1.1, 0.64, 1.88, 0.095],
-];
+// תנוחות של בן האדם ביחידות גוף (רוחב 1, גובה 2): ראש [x, y, רדיוס] ואיברים [x1, y1, x2, y2, עובי].
+// חייבות להיות זהות ללקוח (client/src/games/Seek.jsx)
+const POSES = {
+  stand: {
+    head: [0.5, 0.2, 0.17],
+    limbs: [
+      [0.5, 0.3, 0.5, 0.45, 0.08], // צוואר
+      [0.5, 0.55, 0.5, 1.0, 0.22], // גוף
+      [0.3, 0.5, 0.12, 1.02, 0.075], // ידיים
+      [0.7, 0.5, 0.88, 1.02, 0.075],
+      [0.4, 1.1, 0.36, 1.88, 0.095], // רגליים
+      [0.6, 1.1, 0.64, 1.88, 0.095],
+    ],
+  },
+  up: {
+    head: [0.5, 0.32, 0.17],
+    limbs: [
+      [0.5, 0.42, 0.5, 0.55, 0.08],
+      [0.5, 0.65, 0.5, 1.05, 0.22],
+      [0.32, 0.6, 0.2, 0.06, 0.075],
+      [0.68, 0.6, 0.8, 0.06, 0.075],
+      [0.4, 1.15, 0.38, 1.9, 0.095],
+      [0.6, 1.15, 0.62, 1.9, 0.095],
+    ],
+  },
+  wave: {
+    head: [0.5, 0.25, 0.17],
+    limbs: [
+      [0.5, 0.35, 0.5, 0.5, 0.08],
+      [0.5, 0.6, 0.5, 1.02, 0.22],
+      [0.3, 0.55, 0.14, 1.05, 0.075],
+      [0.7, 0.55, 0.9, 0.08, 0.075],
+      [0.4, 1.12, 0.36, 1.9, 0.095],
+      [0.6, 1.12, 0.64, 1.9, 0.095],
+    ],
+  },
+  t: {
+    head: [0.5, 0.25, 0.15],
+    limbs: [
+      [0.5, 0.35, 0.5, 0.5, 0.07],
+      [0.5, 0.6, 0.5, 1.02, 0.2],
+      [0.3, 0.55, 0.04, 0.55, 0.07],
+      [0.7, 0.55, 0.96, 0.55, 0.07],
+      [0.42, 1.12, 0.4, 1.9, 0.09],
+      [0.58, 1.12, 0.6, 1.9, 0.09],
+    ],
+  },
+  star: {
+    head: [0.5, 0.3, 0.15],
+    limbs: [
+      [0.5, 0.4, 0.5, 0.55, 0.07],
+      [0.5, 0.65, 0.5, 1.05, 0.2],
+      [0.3, 0.6, 0.06, 0.14, 0.07],
+      [0.7, 0.6, 0.94, 0.14, 0.07],
+      [0.42, 1.12, 0.12, 1.9, 0.085],
+      [0.58, 1.12, 0.88, 1.9, 0.085],
+    ],
+  },
+  crouch: {
+    head: [0.5, 0.78, 0.17],
+    limbs: [
+      [0.5, 0.88, 0.5, 1.0, 0.08],
+      [0.5, 1.1, 0.5, 1.42, 0.22],
+      [0.3, 1.05, 0.16, 1.5, 0.075],
+      [0.7, 1.05, 0.84, 1.5, 0.075],
+      [0.4, 1.55, 0.16, 1.68, 0.1], // ירכיים
+      [0.6, 1.55, 0.84, 1.68, 0.1],
+      [0.16, 1.68, 0.28, 1.9, 0.09], // שוקיים
+      [0.84, 1.68, 0.72, 1.9, 0.09],
+    ],
+  },
+};
 
 function segDist(px, py, ax, ay, bx, by) {
   const dx = bx - ax;
@@ -30,9 +92,10 @@ function segDist(px, py, ax, ay, bx, by) {
   return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
 }
 
-function inShape(u, v) {
-  if (Math.hypot(u - HEAD.x, v - HEAD.y) <= HEAD.r) return true;
-  return LIMBS.some(([ax, ay, bx, by, r]) => segDist(u, v, ax, ay, bx, by) <= r);
+function inShape(u, v, pose) {
+  const { head, limbs } = Object.hasOwn(POSES, pose) ? POSES[pose] : POSES.stand;
+  if (Math.hypot(u - head[0], v - head[1]) <= head[2]) return true;
+  return limbs.some(([ax, ay, bx, by, r]) => segDist(u, v, ax, ay, bx, by) <= r);
 }
 
 function decodeImage(data, max = MAX_IMAGE_BYTES) {
@@ -107,6 +170,8 @@ function startHide(room, api) {
       y: Math.random() * (1 - h),
       color: START_COLORS[i % START_COLORS.length],
       skin: null, // תמונה שהמתחבא צייר על עצמו
+      a: 0, // סיבוב במעלות
+      pose: 'stand',
     };
   });
   api.setTimer(api.time('hide'), () => startSeek(room, api));
@@ -146,7 +211,15 @@ function hitTest(room, x, y) {
   const order = g.hiders.filter((id) => !g.found[id] && g.bodies[id]).sort((a, b) => g.bodies[b].y - g.bodies[a].y);
   for (const id of order) {
     const b = g.bodies[id];
-    if (inShape((x - b.x) / w, ((y - b.y) / h) * 2)) return id;
+    // מסובבים את הלחיצה חזרה סביב מרכז הגוף (בקואורדינטות שבהן רוחב וגובה שווים)
+    const cx = (b.x + w / 2) * g.aspect;
+    const cy = b.y + h / 2;
+    const t = (-b.a * Math.PI) / 180;
+    const px = x * g.aspect - cx;
+    const py = y - cy;
+    const rx = px * Math.cos(t) - py * Math.sin(t);
+    const ry = px * Math.sin(t) + py * Math.cos(t);
+    if (inShape(rx / (w * g.aspect) + 0.5, (ry / h) * 2 + 1, b.pose)) return id;
   }
   return null;
 }
@@ -155,7 +228,7 @@ export default {
   id: 'seek',
   minPlayers: 2,
   // תנועה נשלחת הרבה פעמים בשנייה - מסנכרנים את כולם במנות ולא על כל צעד
-  lazy: ['move', 'paint'],
+  lazy: ['move', 'paint', 'pose'],
 
   sanitize(s, n) {
     const seekers = clampInt(s.seekers, 1, Math.max(1, n - 1), 1);
@@ -206,6 +279,13 @@ export default {
       if (!Number.isFinite(x) || !Number.isFinite(y)) return;
       g.bodies[pid].x = Math.max(0, Math.min(1 - w, x));
       g.bodies[pid].y = Math.max(0, Math.min(1 - h, y));
+      const a = Number(data?.a);
+      if (Number.isFinite(a)) g.bodies[pid].a = Math.round((((a % 360) + 540) % 360) - 180);
+      return;
+    }
+    if (type === 'pose') {
+      if (g.phase !== 'hide' || !g.bodies[pid] || typeof data !== 'string' || !Object.hasOwn(POSES, data)) return;
+      g.bodies[pid].pose = data;
       return;
     }
     if (type === 'paint') {
@@ -274,12 +354,12 @@ export default {
       points: g.points,
     };
     // הציור של כל מתחבא מוגש בכתובת נפרדת (ולא בתוך המצב שנשלח לכולם בכל שינוי)
-    const body = (b) => ({ x: b.x, y: b.y, color: b.color, skin: b.skin ? `/img/${room.code}/${b.skin.token}` : null });
+    const body = (b) => ({ x: b.x, y: b.y, a: b.a, pose: b.pose, color: b.color, skin: b.skin ? `/img/${room.code}/${b.skin.token}` : null });
     if (g.phase === 'hide') {
       // המחפשים לא רואים כלום. המתחבאים רואים איפה כולם, אבל את הצבעים רק של עצמם
       if (!isSeeker) {
         v.bodies = Object.fromEntries(
-          Object.entries(g.bodies).map(([id, b]) => [id, id === pid ? body(b) : { x: b.x, y: b.y }]),
+          Object.entries(g.bodies).map(([id, b]) => [id, id === pid ? body(b) : { x: b.x, y: b.y, a: b.a, pose: b.pose }]),
         );
       }
     } else if (g.phase === 'seek' || g.phase === 'results') {

@@ -4,29 +4,99 @@ import { success, fail, pop } from '../sound.js';
 import { useRoom, GameHeader, PlayerTag, Waiting, DoneRow, NextButton, RoundPoints } from '../components/ui.jsx';
 import { generateScene } from './seekScenes.js';
 
-// צורת בן האדם ביחידות גוף (רוחב 1, גובה 2): ראש עגול ואיברים מעוגלים.
-// חייבת להיות זהה לשרת (server/games/seek.js), שבודק לפיה אם המחפש פגע
-const HEAD = { x: 0.5, y: 0.2, r: 0.17 };
-const LIMBS = [
-  [0.5, 0.3, 0.5, 0.45, 0.08], // צוואר
-  [0.5, 0.55, 0.5, 1.0, 0.22], // גוף
-  [0.3, 0.5, 0.12, 1.02, 0.075], // ידיים
-  [0.7, 0.5, 0.88, 1.02, 0.075],
-  [0.4, 1.1, 0.36, 1.88, 0.095], // רגליים
-  [0.6, 1.1, 0.64, 1.88, 0.095],
+// תנוחות של בן האדם ביחידות גוף (רוחב 1, גובה 2): ראש [x, y, רדיוס] ואיברים [x1, y1, x2, y2, עובי].
+// חייבות להיות זהות לשרת (server/games/seek.js), שבודק לפיהן אם המחפש פגע
+const POSES = {
+  stand: {
+    head: [0.5, 0.2, 0.17],
+    limbs: [
+      [0.5, 0.3, 0.5, 0.45, 0.08], // צוואר
+      [0.5, 0.55, 0.5, 1.0, 0.22], // גוף
+      [0.3, 0.5, 0.12, 1.02, 0.075], // ידיים
+      [0.7, 0.5, 0.88, 1.02, 0.075],
+      [0.4, 1.1, 0.36, 1.88, 0.095], // רגליים
+      [0.6, 1.1, 0.64, 1.88, 0.095],
+    ],
+  },
+  up: {
+    head: [0.5, 0.32, 0.17],
+    limbs: [
+      [0.5, 0.42, 0.5, 0.55, 0.08],
+      [0.5, 0.65, 0.5, 1.05, 0.22],
+      [0.32, 0.6, 0.2, 0.06, 0.075],
+      [0.68, 0.6, 0.8, 0.06, 0.075],
+      [0.4, 1.15, 0.38, 1.9, 0.095],
+      [0.6, 1.15, 0.62, 1.9, 0.095],
+    ],
+  },
+  wave: {
+    head: [0.5, 0.25, 0.17],
+    limbs: [
+      [0.5, 0.35, 0.5, 0.5, 0.08],
+      [0.5, 0.6, 0.5, 1.02, 0.22],
+      [0.3, 0.55, 0.14, 1.05, 0.075],
+      [0.7, 0.55, 0.9, 0.08, 0.075],
+      [0.4, 1.12, 0.36, 1.9, 0.095],
+      [0.6, 1.12, 0.64, 1.9, 0.095],
+    ],
+  },
+  t: {
+    head: [0.5, 0.25, 0.15],
+    limbs: [
+      [0.5, 0.35, 0.5, 0.5, 0.07],
+      [0.5, 0.6, 0.5, 1.02, 0.2],
+      [0.3, 0.55, 0.04, 0.55, 0.07],
+      [0.7, 0.55, 0.96, 0.55, 0.07],
+      [0.42, 1.12, 0.4, 1.9, 0.09],
+      [0.58, 1.12, 0.6, 1.9, 0.09],
+    ],
+  },
+  star: {
+    head: [0.5, 0.3, 0.15],
+    limbs: [
+      [0.5, 0.4, 0.5, 0.55, 0.07],
+      [0.5, 0.65, 0.5, 1.05, 0.2],
+      [0.3, 0.6, 0.06, 0.14, 0.07],
+      [0.7, 0.6, 0.94, 0.14, 0.07],
+      [0.42, 1.12, 0.12, 1.9, 0.085],
+      [0.58, 1.12, 0.88, 1.9, 0.085],
+    ],
+  },
+  crouch: {
+    head: [0.5, 0.78, 0.17],
+    limbs: [
+      [0.5, 0.88, 0.5, 1.0, 0.08],
+      [0.5, 1.1, 0.5, 1.42, 0.22],
+      [0.3, 1.05, 0.16, 1.5, 0.075],
+      [0.7, 1.05, 0.84, 1.5, 0.075],
+      [0.4, 1.55, 0.16, 1.68, 0.1], // ירכיים
+      [0.6, 1.55, 0.84, 1.68, 0.1],
+      [0.16, 1.68, 0.28, 1.9, 0.09], // שוקיים
+      [0.84, 1.68, 0.72, 1.9, 0.09],
+    ],
+  },
+};
+const POSE_BUTTONS = [
+  ['stand', '🧍', 'עומד'],
+  ['up', '🙌', 'ידיים למעלה'],
+  ['wave', '🙋', 'נפנוף'],
+  ['t', '✈️', 'מטוס'],
+  ['star', '🤸', 'כוכב'],
+  ['crouch', '🧎', 'כפוף'],
 ];
 const SKIN_W = 100; // פיקסלים ליחידת גוף בעור
 const SKIN_H = 200;
 
 // מצייר את הצורה בצבע אחד. k = פיקסלים ליחידת גוף
-function drawShape(ctx, k, color) {
+function drawShape(ctx, k, color, pose) {
+  const { head, limbs } = POSES[pose] || POSES.stand;
   ctx.fillStyle = color;
   ctx.strokeStyle = color;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.arc(HEAD.x * k, HEAD.y * k, HEAD.r * k, 0, Math.PI * 2);
+  ctx.arc(head[0] * k, head[1] * k, head[2] * k, 0, Math.PI * 2);
   ctx.fill();
-  for (const [ax, ay, bx, by, r] of LIMBS) {
+  for (const [ax, ay, bx, by, r] of limbs) {
     ctx.lineWidth = r * 2 * k;
     ctx.beginPath();
     ctx.moveTo(ax * k, ay * k);
@@ -36,44 +106,47 @@ function drawShape(ctx, k, color) {
 }
 
 const MASKS = new Map();
-function maskFor(k) {
-  if (!MASKS.has(k)) {
+function maskFor(k, pose) {
+  const key = `${k}:${pose}`;
+  if (!MASKS.has(key)) {
     const c = document.createElement('canvas');
     c.width = k;
     c.height = k * 2;
-    drawShape(c.getContext('2d'), k, '#000');
-    MASKS.set(k, c);
+    drawShape(c.getContext('2d'), k, '#000', pose);
+    MASKS.set(key, c);
   }
-  return MASKS.get(k);
+  return MASKS.get(key);
 }
 
 // מצייר את העור על out (בגודל k על 2k), חתוך בדיוק לצורת הגוף
-function drawMasked(skin, out, k) {
+function drawMasked(skin, out, k, pose) {
   const ctx = out.getContext('2d');
   ctx.globalCompositeOperation = 'source-over';
   ctx.clearRect(0, 0, out.width, out.height);
   ctx.drawImage(skin, 0, 0, k, k * 2);
   ctx.globalCompositeOperation = 'destination-in';
-  ctx.drawImage(maskFor(k), 0, 0);
+  ctx.drawImage(maskFor(k, pose), 0, 0);
   ctx.globalCompositeOperation = 'source-over';
 }
 
 // בן אדם בצבע אחד (לפני שצבעו, או רוח רפאים של מתחבא אחר)
 const SILHOUETTES = new Map();
-function silhouette(color) {
-  if (!SILHOUETTES.has(color)) {
+function silhouette(color, pose = 'stand') {
+  const key = `${color}:${pose}`;
+  if (!SILHOUETTES.has(key)) {
     const c = document.createElement('canvas');
     c.width = SKIN_W;
     c.height = SKIN_H;
-    drawShape(c.getContext('2d'), SKIN_W, color);
-    SILHOUETTES.set(color, c.toDataURL());
+    drawShape(c.getContext('2d'), SKIN_W, color, pose);
+    SILHOUETTES.set(key, c.toDataURL());
   }
-  return SILHOUETTES.get(color);
+  return SILHOUETTES.get(key);
 }
 
 const SPEED = 0.3; // גבהי תמונה בשנייה
 const SLOW = 0.07; // עם Shift - לכיוון מדויק
-const KEYS = { KeyW: 'u', ArrowUp: 'u', KeyS: 'd', ArrowDown: 'd', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r' };
+const KEYS = { KeyW: 'u', ArrowUp: 'u', KeyS: 'd', ArrowDown: 'd', KeyA: 'l', ArrowLeft: 'l', KeyD: 'r', ArrowRight: 'r', KeyQ: 'ccw', KeyE: 'cw' };
+const TURN = 150; // מעלות בשנייה (עם Shift - לאט)
 const PALETTE = ['#000000', '#ffffff', '#7f7f7f', '#e63946', '#ff8a00', '#ffd23f', '#2a9d3c', '#2ec4b6', '#3a86ff', '#7b2ff7', '#ff5d8f', '#8b5a2b'];
 
 export default function Seek({ g }) {
@@ -236,7 +309,7 @@ function ZoomBar({ zoom, setZoom, children }) {
 
 // בן אדם אחד על הלוח
 const GLOWS = { red: '#ff2d55', green: '#22c55e', me: '#ffd23f' };
-function Sprite({ src, ghost, x, y, w, h, glow, z = 0 }) {
+function Sprite({ src, ghost, x, y, w, h, a = 0, glow, z = 0 }) {
   return (
     <img
       src={src}
@@ -249,6 +322,7 @@ function Sprite({ src, ghost, x, y, w, h, glow, z = 0 }) {
         width: `${w * 100}%`,
         height: `${h * 100}%`,
         zIndex: 10 + z,
+        transform: a ? `rotate(${a}deg)` : undefined,
         opacity: ghost ? 0.5 : 1,
         filter: glow ? `drop-shadow(0 0 1px ${GLOWS[glow]}) drop-shadow(0 0 1px ${GLOWS[glow]}) drop-shadow(0 0 3px ${GLOWS[glow]})` : undefined,
       }}
@@ -256,7 +330,7 @@ function Sprite({ src, ghost, x, y, w, h, glow, z = 0 }) {
   );
 }
 
-const bodySrc = (b) => (b.skin ? serverUrl(b.skin) : silhouette(`#${b.color || '888888'}`));
+const bodySrc = (b) => (b.skin ? serverUrl(b.skin) : silhouette(`#${b.color || '888888'}`, b.pose));
 
 function Label({ id, x, y, w, children }) {
   const { state } = useRoom();
@@ -279,7 +353,7 @@ function Bodies({ g, labels, glowFor, labelText }) {
     const b = g.bodies[id];
     return (
       <div key={id}>
-        <Sprite src={bodySrc(b)} x={b.x} y={b.y} w={w} h={h} glow={glowFor?.(id)} z={i} />
+        <Sprite src={bodySrc(b)} x={b.x} y={b.y} a={b.a} w={w} h={h} glow={glowFor?.(id)} z={i} />
         {labels?.(id) && (
           <Label id={id} x={b.x} y={b.y} w={w}>
             {labelText?.(id)}
@@ -581,14 +655,16 @@ function HidePhase({ g, img }) {
 function Hider({ g, img }) {
   const { state, act, showToast } = useRoom();
   const me = g.bodies[state.me];
-  const [pos, setPos] = useState({ x: me.x, y: me.y });
+  const [pos, setPos] = useState({ x: me.x, y: me.y, a: me.a || 0 });
+  const [pose, setPoseState] = useState(me.pose || 'stand');
+  const poseRef = useRef(pose);
   const [color, setColor] = useState('#2a9d3c');
   const [recent, setRecent] = useState([]);
   const [size, setSize] = useState(8); // עובי המכחול בפיקסלים של העור (100 = רוחב הגוף)
   const [tool, setTool] = useState('brush');
   const [peek, setPeek] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const [ownSrc, setOwnSrc] = useState(() => silhouette(`#${me.color}`));
+  const [ownSrc, setOwnSrc] = useState(() => silhouette(`#${me.color}`, me.pose));
   const [ver, setVer] = useState(0);
   const [canUndo, setCanUndo] = useState(false);
   const keys = useRef(new Set());
@@ -625,12 +701,31 @@ function Hider({ g, img }) {
 
   // אחרי כל שינוי: מעדכנים את הלוח, ושולחים לשרת כשמפסיקים לצייר לרגע
   function changed(send = true) {
-    drawMasked(skin.current, out.current, SKIN_W);
+    drawMasked(skin.current, out.current, SKIN_W, poseRef.current);
     setOwnSrc(out.current.toDataURL());
     setVer((v) => v + 1);
     if (!send) return;
     clearTimeout(upload.current);
     upload.current = setTimeout(() => socket.emit('game:action', { type: 'paint', data: out.current.toDataURL('image/png') }), 400);
+  }
+
+  // תנוחה חדשה: הציור נשמר, רק הצורה משתנה (ונשלח מיד, כדי שהמחפש יראה את הצורה הנכונה)
+  function setPose(p) {
+    poseRef.current = p;
+    setPoseState(p);
+    socket.emit('game:action', { type: 'pose', data: p });
+    drawMasked(skin.current, out.current, SKIN_W, p);
+    setOwnSrc(out.current.toDataURL());
+    setVer((v) => v + 1);
+    clearTimeout(upload.current);
+    socket.emit('game:action', { type: 'paint', data: out.current.toDataURL('image/png') });
+  }
+
+  function turn(deg) {
+    const a = Math.round((((posRef.current.a + deg) % 360) + 540) % 360) - 180;
+    posRef.current = { ...posRef.current, a };
+    setPos(posRef.current);
+    socket.emit('game:action', { type: 'move', data: posRef.current });
   }
 
   function saveUndo() {
@@ -699,15 +794,18 @@ function Hider({ g, img }) {
       last = t;
       if (ks.size) {
         const v = slow ? SLOW : SPEED;
-        let { x, y } = posRef.current;
+        let { x, y, a } = posRef.current;
+        if (ks.has('ccw')) a -= (slow ? TURN / 4 : TURN) * dt;
+        if (ks.has('cw')) a += (slow ? TURN / 4 : TURN) * dt;
+        a = (((a % 360) + 540) % 360) - 180;
         if (ks.has('u')) y -= v * dt;
         if (ks.has('d')) y += v * dt;
         if (ks.has('l')) x -= (v * dt) / g.aspect;
         if (ks.has('r')) x += (v * dt) / g.aspect;
         x = Math.max(0, Math.min(1 - w, x));
         y = Math.max(0, Math.min(1 - h, y));
-        if (x !== posRef.current.x || y !== posRef.current.y) {
-          posRef.current = { x, y };
+        if (x !== posRef.current.x || y !== posRef.current.y || a !== posRef.current.a) {
+          posRef.current = { x, y, a };
           setPos(posRef.current);
           dirty = true;
         }
@@ -750,11 +848,11 @@ function Hider({ g, img }) {
             .filter(([id]) => id !== state.me)
             .map(([id, b]) => (
               <div key={id}>
-                <Sprite ghost src={silhouette('#ffffff')} x={b.x} y={b.y} w={w} h={h} />
+                <Sprite ghost src={silhouette('#ffffff', b.pose)} x={b.x} y={b.y} a={b.a} w={w} h={h} />
                 <Label id={id} x={b.x} y={b.y} w={w} />
               </div>
             ))}
-          <Sprite src={ownSrc} x={pos.x} y={pos.y} w={w} h={h} glow={peek ? 'me' : undefined} z={100} />
+          <Sprite src={ownSrc} x={pos.x} y={pos.y} a={pos.a} w={w} h={h} glow={peek ? 'me' : undefined} z={100} />
           <div
             className="pointer-events-none absolute z-[200] -translate-x-1/2 -translate-y-full animate-bounce text-xl"
             style={{ left: `${(pos.x + w / 2) * 100}%`, top: `${pos.y * 100}%` }}
@@ -763,7 +861,7 @@ function Hider({ g, img }) {
           </div>
         </Board>
         <p className="mt-2 text-center text-sm text-indigo-400">
-          זזים עם <b dir="ltr">W A S D</b> או החצים (Shift = לאט). אחרים רואים רק איפה אתם - לא את הצבעים 🤫
+          זזים עם <b dir="ltr">W A S D</b> או החצים, מסתובבים עם <b dir="ltr">Q E</b> (Shift = לאט). אחרים רואים רק איפה אתם - לא את הצבעים 🤫
         </p>
       </div>
 
@@ -774,6 +872,7 @@ function Hider({ g, img }) {
           pos={pos}
           skin={skin.current}
           ver={ver}
+          pose={pose}
           peek={peek}
           tool={tool}
           color={color}
@@ -802,6 +901,8 @@ function Hider({ g, img }) {
           </button>
         </div>
         <BrushSize size={size} setSize={setSize} min={1} max={40} color={color} scale={2} />
+        <PosePicker pose={pose} setPose={setPose} />
+        <RotateBar a={pos.a} keys={keys.current} onTurn={turn} />
         <div className="flex items-center justify-center gap-2">
           <span className="h-9 w-9 shrink-0 rounded-xl border-4 border-white shadow" style={{ background: color }} title="הצבע הנוכחי" />
           <Swatches color={color} setColor={setColor} extra={recent} />
@@ -836,7 +937,7 @@ const U = 180; // פיקסלים ליחידת גוף בעורך
 const EW = Math.round((1 + MX * 2) * U);
 const EH = Math.round((2 + MY * 2) * U);
 
-function SkinEditor({ g, img, pos, skin, ver, peek, tool, color, size, onBegin, onChange, onPick }) {
+function SkinEditor({ g, img, pos, skin, ver, pose, peek, tool, color, size, onBegin, onChange, onPick }) {
   const ref = useRef();
   const body = useRef(null);
   const last = useRef(null);
@@ -848,51 +949,27 @@ function SkinEditor({ g, img, pos, skin, ver, peek, tool, color, size, onBegin, 
     ctx.fillRect(0, 0, EW, EH);
     const src = img?.canvas;
     if (src) {
-      // האזור בתמונה שמאחורי הגוף + שוליים
+      // הרקע שמאחורי הגוף, מסובב כך שהגוף בעורך תמיד עומד ישר
       const cu = (h * src.height) / 2; // פיקסלים בתמונה ליחידת גוף
-      let sx = pos.x * src.width - MX * cu;
-      let sy = pos.y * src.height - MY * cu;
-      let sw = (EW / U) * cu;
-      let sh = (EH / U) * cu;
-      let dx = 0;
-      let dy = 0;
-      let dw = EW;
-      let dh = EH;
-      // חיתוך לגבולות התמונה
-      if (sx < 0) {
-        dx = (-sx / sw) * dw;
-        dw -= dx;
-        sw += sx;
-        sx = 0;
-      }
-      if (sy < 0) {
-        dy = (-sy / sh) * dh;
-        dh -= dy;
-        sh += sy;
-        sy = 0;
-      }
-      if (sx + sw > src.width) {
-        const cut = sx + sw - src.width;
-        dw -= (cut / sw) * dw;
-        sw -= cut;
-      }
-      if (sy + sh > src.height) {
-        const cut = sy + sh - src.height;
-        dh -= (cut / sh) * dh;
-        sh -= cut;
-      }
-      if (sw > 0 && sh > 0) ctx.drawImage(src, sx, sy, sw, sh, dx, dy, dw, dh);
+      const k = U / cu;
+      const cx = (pos.x + w / 2) * src.width;
+      const cy = (pos.y + h / 2) * src.height;
+      ctx.save();
+      ctx.translate((MX + 0.5) * U, (MY + 1) * U);
+      ctx.rotate((-(pos.a || 0) * Math.PI) / 180);
+      ctx.drawImage(src, -cx * k, -cy * k, src.width * k, src.height * k);
+      ctx.restore();
     }
     if (!body.current) {
       body.current = document.createElement('canvas');
       body.current.width = U;
       body.current.height = U * 2;
     }
-    drawMasked(skin, body.current, U);
+    drawMasked(skin, body.current, U, pose);
     ctx.globalAlpha = peek ? 0.3 : 1;
     ctx.drawImage(body.current, MX * U, MY * U);
     ctx.globalAlpha = 1;
-  }, [img, pos, skin, ver, peek, w, h]);
+  }, [img, pos, skin, ver, pose, peek, w, h]);
 
   // נקודה בעורך → פיקסל בעור
   function at(e) {
@@ -900,6 +977,16 @@ function SkinEditor({ g, img, pos, skin, ver, peek, tool, color, size, onBegin, 
     const bu = (((e.clientX - r.left) / r.width) * EW) / U - MX;
     const bv = (((e.clientY - r.top) / r.height) * EH) / U - MY;
     return { bu, bv, x: bu * SKIN_W, y: bv * SKIN_W };
+  }
+
+  // נקודה בעורך (ביחידות גוף) → נקודה בתמונה (0-1), כולל הסיבוב
+  function toImage({ bu, bv }) {
+    const t = ((pos.a || 0) * Math.PI) / 180;
+    const du = bu - 0.5;
+    const dv = bv - 1;
+    const ru = du * Math.cos(t) - dv * Math.sin(t);
+    const rv = du * Math.sin(t) + dv * Math.cos(t);
+    return [pos.x + w / 2 + ru * w, pos.y + h / 2 + (rv * h) / 2];
   }
 
   function stroke(from, to) {
@@ -933,7 +1020,7 @@ function SkinEditor({ g, img, pos, skin, ver, peek, tool, color, size, onBegin, 
         onPointerDown={(e) => {
           e.preventDefault();
           const p = at(e);
-          if (tool === 'pick' || peek) return onPick(pos.x + p.bu * w, pos.y + (p.bv * h) / 2);
+          if (tool === 'pick' || peek) return onPick(...toImage(p));
           e.currentTarget.setPointerCapture(e.pointerId);
           onBegin();
           last.current = p;
@@ -951,6 +1038,56 @@ function SkinEditor({ g, img, pos, skin, ver, peek, tool, color, size, onBegin, 
       <p dir="rtl" className="mt-1 text-center text-xs text-indigo-400">
         מציירים חופשי על הגוף · 💧 טפטפת = לקחת צבע מהרקע · ״מה מאחוריי״ = לראות מה מתחת לגוף
       </p>
+    </div>
+  );
+}
+
+function PosePicker({ pose, setPose }) {
+  return (
+    <div className="grid grid-cols-6 gap-1 rounded-2xl bg-indigo-50 p-1">
+      {POSE_BUTTONS.map(([k, e, label]) => (
+        <button key={k} title={label} onClick={() => setPose(k)} className={`rounded-xl py-1 text-2xl ${pose === k ? 'bg-white shadow' : 'opacity-60 hover:opacity-100'}`}>
+          {e}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+// סיבוב: לחיצה קצרה = 15 מעלות, להחזיק = מסתובבים (כמו Q/E). לחיצה על המספר = חזרה לישר
+function RotateBar({ a, keys, onTurn }) {
+  const timer = useRef(null);
+  const hold = (k, deg, label) => (
+    <button
+      className="flex h-10 w-12 select-none items-center justify-center rounded-xl bg-white text-xl shadow active:bg-indigo-100"
+      style={{ touchAction: 'none' }}
+      onPointerDown={(e) => {
+        e.preventDefault();
+        e.currentTarget.setPointerCapture(e.pointerId);
+        onTurn(deg);
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => keys.add(k), 300);
+      }}
+      onPointerUp={() => {
+        clearTimeout(timer.current);
+        keys.delete(k);
+      }}
+      onPointerCancel={() => {
+        clearTimeout(timer.current);
+        keys.delete(k);
+      }}
+      onContextMenu={(e) => e.preventDefault()}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <div dir="ltr" className="flex items-center justify-center gap-2 rounded-2xl bg-indigo-50 p-1">
+      {hold('ccw', -15, '↺')}
+      <button className="min-w-[4.5rem] rounded-xl px-2 py-1 font-display tabular-nums text-indigo-500 hover:bg-white" title="חזרה לעמידה ישרה" onClick={() => onTurn(-a)}>
+        {Math.round(a)}°
+      </button>
+      {hold('cw', 15, '↻')}
     </div>
   );
 }
