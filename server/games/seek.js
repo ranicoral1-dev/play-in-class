@@ -10,39 +10,36 @@ const MISS_COOLDOWN_MS = 1200; // אחרי פספוס - רגע המתנה, כד�
 const SIZES = { small: 0.1, medium: 0.14, large: 0.2 }; // גובה המתחבא ביחס לגובה התמונה
 const START_COLORS = ['ff3b6b', '7b2ff7', '00c2ff', 'ffd23f', '2ec4b6', 'ff8a00', '00e05a', 'ff4fd8'];
 
-// צורת בן האדם: 10 משבצות רוחב, 20 גובה (# = גוף). חייב להיות זהה ללקוח
-export const BODY = [
-  '...####...',
-  '..######..',
-  '..######..',
-  '..######..',
-  '...####...',
-  '....##....',
-  '##########',
-  '##########',
-  '#.######.#',
-  '#.######.#',
-  '#.######.#',
-  '#.######.#',
-  '#.######.#',
-  '..######..',
-  '..##..##..',
-  '..##..##..',
-  '..##..##..',
-  '..##..##..',
-  '..##..##..',
-  '.###..###.',
-];
-const COLS = 10;
-const ROWS = 20;
-const CELLS = BODY.join('').split('').filter((c) => c === '#').length;
-const SKIN_RE = new RegExp(`^[0-9a-f]{${CELLS * 6}}$`);
+const MAX_SKIN_BYTES = 300 * 1024;
 
-function decodeImage(data) {
+// צורת בן האדם ביחידות גוף (רוחב 1, גובה 2) - חייבת להיות זהה ללקוח (client/src/games/Seek.jsx)
+const HEAD = { x: 0.5, y: 0.2, r: 0.17 };
+const LIMBS = [
+  [0.5, 0.3, 0.5, 0.45, 0.08],
+  [0.5, 0.55, 0.5, 1.0, 0.22],
+  [0.3, 0.5, 0.12, 1.02, 0.075],
+  [0.7, 0.5, 0.88, 1.02, 0.075],
+  [0.4, 1.1, 0.36, 1.88, 0.095],
+  [0.6, 1.1, 0.64, 1.88, 0.095],
+];
+
+function segDist(px, py, ax, ay, bx, by) {
+  const dx = bx - ax;
+  const dy = by - ay;
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / (dx * dx + dy * dy || 1)));
+  return Math.hypot(px - (ax + t * dx), py - (ay + t * dy));
+}
+
+function inShape(u, v) {
+  if (Math.hypot(u - HEAD.x, v - HEAD.y) <= HEAD.r) return true;
+  return LIMBS.some(([ax, ay, bx, by, r]) => segDist(u, v, ax, ay, bx, by) <= r);
+}
+
+function decodeImage(data, max = MAX_IMAGE_BYTES) {
   const m = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/=]+)$/.exec(String(data ?? ''));
   if (!m) return null;
   const buf = Buffer.from(m[2], 'base64');
-  if (!buf.length || buf.length > MAX_IMAGE_BYTES) return null;
+  if (!buf.length || buf.length > max) return null;
   return { type: `image/${m[1]}`, buf };
 }
 
@@ -50,7 +47,7 @@ function decodeImage(data) {
 function bodySize(room) {
   const g = room.game;
   const h = SIZES[room.settings.size] || SIZES.medium;
-  return { w: (h * (COLS / ROWS)) / g.aspect, h };
+  return { w: (h * 0.5) / g.aspect, h };
 }
 
 // בוחרים את המחפשים הבאים בסבב, רק מבין מי שמחובר
@@ -108,7 +105,8 @@ function startHide(room, api) {
     g.bodies[id] = {
       x: Math.random() * (1 - w),
       y: Math.random() * (1 - h),
-      skin: START_COLORS[i % START_COLORS.length].repeat(CELLS),
+      color: START_COLORS[i % START_COLORS.length],
+      skin: null, // תמונה שהמתחבא צייר על עצמו
     };
   });
   api.setTimer(api.time('hide'), () => startSeek(room, api));
@@ -140,7 +138,7 @@ function allReady(room, api) {
   return g.hiders.filter((id) => api.isConnected(id)).every((id) => g.ready[id]);
 }
 
-// לחיצה של המחפש: פוגעת רק אם נפלה על משבצת של גוף (לא על הרווח בין הרגליים)
+// לחיצה של המחפש: פוגעת רק אם נפלה על הגוף עצמו (לא על הרווח בין הרגליים)
 function hitTest(room, x, y) {
   const g = room.game;
   const { w, h } = bodySize(room);
@@ -148,9 +146,7 @@ function hitTest(room, x, y) {
   const order = g.hiders.filter((id) => !g.found[id] && g.bodies[id]).sort((a, b) => g.bodies[b].y - g.bodies[a].y);
   for (const id of order) {
     const b = g.bodies[id];
-    const c = Math.floor(((x - b.x) / w) * COLS);
-    const r = Math.floor(((y - b.y) / h) * ROWS);
-    if (c >= 0 && c < COLS && r >= 0 && r < ROWS && BODY[r][c] === '#') return id;
+    if (inShape((x - b.x) / w, ((y - b.y) / h) * 2)) return id;
   }
   return null;
 }
@@ -214,9 +210,9 @@ export default {
     }
     if (type === 'paint') {
       if (g.phase !== 'hide' || !g.bodies[pid]) return;
-      const skin = String(data ?? '').toLowerCase();
-      if (!SKIN_RE.test(skin)) return;
-      g.bodies[pid].skin = skin;
+      const img = decodeImage(data, MAX_SKIN_BYTES);
+      if (!img) return;
+      g.bodies[pid].skin = { ...img, token: crypto.randomBytes(12).toString('hex') };
       return;
     }
     if (type === 'ready') {
@@ -252,8 +248,9 @@ export default {
   },
 
   file(room, token) {
-    const img = room.game?.image;
-    return img && img.token === token ? { type: img.type, buf: img.buf } : null;
+    const g = room.game;
+    const img = [g?.image, ...Object.values(g?.bodies || {}).map((b) => b.skin)].find((x) => x?.token === token);
+    return img ? { type: img.type, buf: img.buf } : null;
   },
 
   view(room, pid) {
@@ -276,15 +273,17 @@ export default {
       misses: g.misses,
       points: g.points,
     };
+    // הציור של כל מתחבא מוגש בכתובת נפרדת (ולא בתוך המצב שנשלח לכולם בכל שינוי)
+    const body = (b) => ({ x: b.x, y: b.y, color: b.color, skin: b.skin ? `/img/${room.code}/${b.skin.token}` : null });
     if (g.phase === 'hide') {
       // המחפשים לא רואים כלום. המתחבאים רואים איפה כולם, אבל את הצבעים רק של עצמם
       if (!isSeeker) {
         v.bodies = Object.fromEntries(
-          Object.entries(g.bodies).map(([id, b]) => [id, id === pid ? b : { x: b.x, y: b.y }]),
+          Object.entries(g.bodies).map(([id, b]) => [id, id === pid ? body(b) : { x: b.x, y: b.y }]),
         );
       }
     } else if (g.phase === 'seek' || g.phase === 'results') {
-      v.bodies = g.bodies;
+      v.bodies = Object.fromEntries(Object.entries(g.bodies).map(([id, b]) => [id, body(b)]));
       v.cooldownLeft = isSeeker ? Math.max(0, MISS_COOLDOWN_MS - (Date.now() - (g.lastMiss[pid] || 0))) : 0;
     }
     return v;

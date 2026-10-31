@@ -1,43 +1,75 @@
-import { memo, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { emit, socket, serverUrl } from '../socket.js';
 import { success, fail, pop } from '../sound.js';
 import { useRoom, GameHeader, PlayerTag, Waiting, DoneRow, NextButton, RoundPoints } from '../components/ui.jsx';
 import { generateScene } from './seekScenes.js';
 
-// צורת בן האדם - חייב להיות זהה לשרת (server/games/seek.js)
-const BODY = [
-  '...####...',
-  '..######..',
-  '..######..',
-  '..######..',
-  '...####...',
-  '....##....',
-  '##########',
-  '##########',
-  '#.######.#',
-  '#.######.#',
-  '#.######.#',
-  '#.######.#',
-  '#.######.#',
-  '..######..',
-  '..##..##..',
-  '..##..##..',
-  '..##..##..',
-  '..##..##..',
-  '..##..##..',
-  '.###..###.',
+// צורת בן האדם ביחידות גוף (רוחב 1, גובה 2): ראש עגול ואיברים מעוגלים.
+// חייבת להיות זהה לשרת (server/games/seek.js), שבודק לפיה אם המחפש פגע
+const HEAD = { x: 0.5, y: 0.2, r: 0.17 };
+const LIMBS = [
+  [0.5, 0.3, 0.5, 0.45, 0.08], // צוואר
+  [0.5, 0.55, 0.5, 1.0, 0.22], // גוף
+  [0.3, 0.5, 0.12, 1.02, 0.075], // ידיים
+  [0.7, 0.5, 0.88, 1.02, 0.075],
+  [0.4, 1.1, 0.36, 1.88, 0.095], // רגליים
+  [0.6, 1.1, 0.64, 1.88, 0.095],
 ];
-const COLS = 10;
-const ROWS = 20;
-// מספר המשבצת בעור לכל משבצת גוף, או -1
-const CELL = [];
-let CELLS = 0;
-for (let r = 0; r < ROWS; r++) {
-  CELL.push([]);
-  for (let c = 0; c < COLS; c++) CELL[r].push(BODY[r][c] === '#' ? CELLS++ : -1);
+const SKIN_W = 100; // פיקסלים ליחידת גוף בעור
+const SKIN_H = 200;
+
+// מצייר את הצורה בצבע אחד. k = פיקסלים ליחידת גוף
+function drawShape(ctx, k, color) {
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.arc(HEAD.x * k, HEAD.y * k, HEAD.r * k, 0, Math.PI * 2);
+  ctx.fill();
+  for (const [ax, ay, bx, by, r] of LIMBS) {
+    ctx.lineWidth = r * 2 * k;
+    ctx.beginPath();
+    ctx.moveTo(ax * k, ay * k);
+    ctx.lineTo(bx * k, by * k);
+    ctx.stroke();
+  }
 }
-const inBody = (c, r) => c >= 0 && c < COLS && r >= 0 && r < ROWS && CELL[r][c] >= 0;
-const splitSkin = (s) => (s ? s.match(/.{6}/g) : Array(CELLS).fill('888888'));
+
+const MASKS = new Map();
+function maskFor(k) {
+  if (!MASKS.has(k)) {
+    const c = document.createElement('canvas');
+    c.width = k;
+    c.height = k * 2;
+    drawShape(c.getContext('2d'), k, '#000');
+    MASKS.set(k, c);
+  }
+  return MASKS.get(k);
+}
+
+// מצייר את העור על out (בגודל k על 2k), חתוך בדיוק לצורת הגוף
+function drawMasked(skin, out, k) {
+  const ctx = out.getContext('2d');
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.clearRect(0, 0, out.width, out.height);
+  ctx.drawImage(skin, 0, 0, k, k * 2);
+  ctx.globalCompositeOperation = 'destination-in';
+  ctx.drawImage(maskFor(k), 0, 0);
+  ctx.globalCompositeOperation = 'source-over';
+}
+
+// בן אדם בצבע אחד (לפני שצבעו, או רוח רפאים של מתחבא אחר)
+const SILHOUETTES = new Map();
+function silhouette(color) {
+  if (!SILHOUETTES.has(color)) {
+    const c = document.createElement('canvas');
+    c.width = SKIN_W;
+    c.height = SKIN_H;
+    drawShape(c.getContext('2d'), SKIN_W, color);
+    SILHOUETTES.set(color, c.toDataURL());
+  }
+  return SILHOUETTES.get(color);
+}
 
 const SPEED = 0.3; // גבהי תמונה בשנייה
 const SLOW = 0.07; // עם Shift - לכיוון מדויק
@@ -157,7 +189,7 @@ function makeImage(key, canvas, src) {
 }
 
 function bodyBox(g) {
-  return { w: (g.size * (COLS / ROWS)) / g.aspect, h: g.size };
+  return { w: (g.size * 0.5) / g.aspect, h: g.size };
 }
 
 // ---------- הלוח ----------
@@ -202,46 +234,29 @@ function ZoomBar({ zoom, setZoom, children }) {
   );
 }
 
-// בן אדם אחד על הלוח: קנבס של 10x20 פיקסלים שמוגדל בלי טשטוש
-const Sprite = memo(function Sprite({ skin, ghost, x, y, w, h, glow, z = 0 }) {
-  const ref = useRef();
-  useEffect(() => {
-    const ctx = ref.current.getContext('2d');
-    const im = ctx.createImageData(COLS, ROWS);
-    const colors = skin ? splitSkin(skin) : null;
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const k = CELL[r][c];
-        if (k < 0) continue;
-        const i = (r * COLS + c) * 4;
-        const hex = ghost || !colors ? 'ffffff' : colors[k];
-        im.data[i] = parseInt(hex.slice(0, 2), 16);
-        im.data[i + 1] = parseInt(hex.slice(2, 4), 16);
-        im.data[i + 2] = parseInt(hex.slice(4, 6), 16);
-        im.data[i + 3] = ghost ? 120 : 255;
-      }
-    }
-    ctx.putImageData(im, 0, 0);
-  }, [skin, ghost]);
-  const glows = { red: '#ff2d55', green: '#22c55e', me: '#ffd23f' };
+// בן אדם אחד על הלוח
+const GLOWS = { red: '#ff2d55', green: '#22c55e', me: '#ffd23f' };
+function Sprite({ src, ghost, x, y, w, h, glow, z = 0 }) {
   return (
-    <canvas
-      ref={ref}
-      width={COLS}
-      height={ROWS}
+    <img
+      src={src}
+      alt=""
+      draggable={false}
       className="pointer-events-none absolute"
       style={{
         left: `${x * 100}%`,
         top: `${y * 100}%`,
         width: `${w * 100}%`,
         height: `${h * 100}%`,
-        imageRendering: 'pixelated',
         zIndex: 10 + z,
-        filter: glow ? `drop-shadow(0 0 1px ${glows[glow]}) drop-shadow(0 0 1px ${glows[glow]}) drop-shadow(0 0 3px ${glows[glow]})` : undefined,
+        opacity: ghost ? 0.5 : 1,
+        filter: glow ? `drop-shadow(0 0 1px ${GLOWS[glow]}) drop-shadow(0 0 1px ${GLOWS[glow]}) drop-shadow(0 0 3px ${GLOWS[glow]})` : undefined,
       }}
     />
   );
-});
+}
+
+const bodySrc = (b) => (b.skin ? serverUrl(b.skin) : silhouette(`#${b.color || '888888'}`));
 
 function Label({ id, x, y, w, children }) {
   const { state } = useRoom();
@@ -264,7 +279,7 @@ function Bodies({ g, labels, glowFor, labelText }) {
     const b = g.bodies[id];
     return (
       <div key={id}>
-        <Sprite skin={b.skin} x={b.x} y={b.y} w={w} h={h} glow={glowFor?.(id)} z={i} />
+        <Sprite src={bodySrc(b)} x={b.x} y={b.y} w={w} h={h} glow={glowFor?.(id)} z={i} />
         {labels?.(id) && (
           <Label id={id} x={b.x} y={b.y} w={w}>
             {labelText?.(id)}
@@ -406,6 +421,19 @@ function ImageMaker() {
     if (res.error) showToast(res.error);
   }
 
+  // Ctrl+Z = אחורה
+  const restoreRef = useRef(restore);
+  restoreRef.current = restore;
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.code !== 'KeyZ' || e.target.matches?.('input, textarea')) return;
+      e.preventDefault();
+      restoreRef.current();
+    };
+    addEventListener('keydown', onKey);
+    return () => removeEventListener('keydown', onKey);
+  }, []);
+
   // רגע לפני שהזמן נגמר - שולחים את מה שיש
   const sendRef = useRef(send);
   sendRef.current = send;
@@ -455,16 +483,12 @@ function ImageMaker() {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-1 rounded-2xl bg-indigo-50 p-1">
-          {[6, 16, 40, 90].map((s) => (
-            <button key={s} onClick={() => setSize(s)} className={`flex h-8 w-8 items-center justify-center rounded-xl ${size === s ? 'bg-white shadow' : ''}`}>
-              <span className="rounded-full bg-ink" style={{ width: Math.max(4, s / 4), height: Math.max(4, s / 4) }} />
-            </button>
-          ))}
+        <div className="w-56">
+          <BrushSize size={size} setSize={setSize} min={2} max={120} color={color} scale={0.3} />
         </div>
         <Swatches color={color} setColor={setColor} />
         <button className="rounded-xl bg-indigo-50 px-3 py-1.5 font-bold text-indigo-500" onClick={restore}>
-          ↩️ ביטול
+          ↩️ אחורה
         </button>
       </div>
       <div dir="ltr" className="mx-auto" style={{ maxWidth: `min(100%, calc(58vh * ${dims.w / dims.h}))` }}>
@@ -558,16 +582,95 @@ function Hider({ g, img }) {
   const { state, act, showToast } = useRoom();
   const me = g.bodies[state.me];
   const [pos, setPos] = useState({ x: me.x, y: me.y });
-  const [skin, setSkin] = useState(() => splitSkin(me.skin));
   const [color, setColor] = useState('#2a9d3c');
   const [recent, setRecent] = useState([]);
-  const [brush, setBrush] = useState(1);
+  const [size, setSize] = useState(8); // עובי המכחול בפיקסלים של העור (100 = רוחב הגוף)
+  const [tool, setTool] = useState('brush');
   const [peek, setPeek] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [ownSrc, setOwnSrc] = useState(() => silhouette(`#${me.color}`));
+  const [ver, setVer] = useState(0);
+  const [canUndo, setCanUndo] = useState(false);
   const keys = useRef(new Set());
   const posRef = useRef(pos);
+  const skin = useRef(null);
+  const out = useRef(null);
+  const undo = useRef([]);
+  const upload = useRef(null);
   const { w, h } = bodyBox(g);
   const ready = g.readyIds.includes(state.me);
+
+  // העור: קנבס חופשי שמציירים עליו. בהתחלה בצבע אחד (או מה שכבר צבעתם, אם התחברתם מחדש)
+  if (!skin.current) {
+    skin.current = document.createElement('canvas');
+    skin.current.width = SKIN_W;
+    skin.current.height = SKIN_H;
+    const ctx = skin.current.getContext('2d');
+    ctx.fillStyle = `#${me.color}`;
+    ctx.fillRect(0, 0, SKIN_W, SKIN_H);
+    out.current = document.createElement('canvas');
+    out.current.width = SKIN_W;
+    out.current.height = SKIN_H;
+  }
+  useEffect(() => {
+    if (!me.skin) return;
+    const im = new Image();
+    im.crossOrigin = 'anonymous';
+    im.onload = () => {
+      skin.current.getContext('2d').drawImage(im, 0, 0, SKIN_W, SKIN_H);
+      changed(false);
+    };
+    im.src = serverUrl(me.skin);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // אחרי כל שינוי: מעדכנים את הלוח, ושולחים לשרת כשמפסיקים לצייר לרגע
+  function changed(send = true) {
+    drawMasked(skin.current, out.current, SKIN_W);
+    setOwnSrc(out.current.toDataURL());
+    setVer((v) => v + 1);
+    if (!send) return;
+    clearTimeout(upload.current);
+    upload.current = setTimeout(() => socket.emit('game:action', { type: 'paint', data: out.current.toDataURL('image/png') }), 400);
+  }
+
+  function saveUndo() {
+    const s = skin.current;
+    undo.current.push(s.getContext('2d').getImageData(0, 0, s.width, s.height));
+    if (undo.current.length > 40) undo.current.shift();
+    setCanUndo(true);
+  }
+
+  function goBack() {
+    const snap = undo.current.pop();
+    setCanUndo(undo.current.length > 0);
+    if (!snap) return;
+    skin.current.getContext('2d').putImageData(snap, 0, 0);
+    changed();
+  }
+
+  function fillAll() {
+    saveUndo();
+    const ctx = skin.current.getContext('2d');
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, SKIN_W, SKIN_H);
+    changed();
+  }
+
+  // Ctrl+Z = אחורה
+  const backRef = useRef(goBack);
+  backRef.current = goBack;
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.ctrlKey || e.metaKey) || e.code !== 'KeyZ' || e.target.matches?.('input, textarea')) return;
+      e.preventDefault();
+      backRef.current();
+    };
+    addEventListener('keydown', onKey);
+    return () => {
+      removeEventListener('keydown', onKey);
+      clearTimeout(upload.current);
+    };
+  }, []);
 
   // תנועה: WASD או חצים (גם במקלדת עברית - לפי מיקום המקש), Shift = לאט
   useEffect(() => {
@@ -575,7 +678,7 @@ function Hider({ g, img }) {
     let slow = false;
     const down = (e) => {
       slow = e.shiftKey;
-      if (e.target.matches?.('input, textarea')) return;
+      if (e.ctrlKey || e.metaKey || e.target.matches?.('input, textarea')) return;
       const k = KEYS[e.code];
       if (!k) return;
       e.preventDefault();
@@ -628,29 +731,12 @@ function Hider({ g, img }) {
     };
   }, [g.aspect, w, h]);
 
-  // הצבעים נשלחים קצת אחרי שמפסיקים לצבוע
-  const skinStr = skin.join('');
-  useEffect(() => {
-    const t = setTimeout(() => socket.emit('game:action', { type: 'paint', data: skinStr }), 200);
-    return () => clearTimeout(t);
-  }, [skinStr]);
-
   function pickColor(hex) {
     if (!hex) return showToast('אי אפשר לקחת צבע מהתמונה הזאת - בחרו מהפלטה');
     const c = `#${hex}`;
     setColor(c);
+    setTool('brush');
     setRecent((old) => [c, ...old.filter((x) => x !== c)].slice(0, 8));
-  }
-
-  function paint(c, r) {
-    const hex = color.slice(1).toLowerCase();
-    setSkin((old) => {
-      const next = [...old];
-      if (brush === 'all') return next.fill(hex);
-      const rad = brush === 2 ? 1 : 0;
-      for (let dr = -rad; dr <= rad; dr++) for (let dc = -rad; dc <= rad; dc++) if (inBody(c + dc, r + dr)) next[CELL[r + dr][c + dc]] = hex;
-      return next;
-    });
   }
 
   return (
@@ -664,11 +750,11 @@ function Hider({ g, img }) {
             .filter(([id]) => id !== state.me)
             .map(([id, b]) => (
               <div key={id}>
-                <Sprite ghost x={b.x} y={b.y} w={w} h={h} />
+                <Sprite ghost src={silhouette('#ffffff')} x={b.x} y={b.y} w={w} h={h} />
                 <Label id={id} x={b.x} y={b.y} w={w} />
               </div>
             ))}
-          <Sprite skin={skinStr} x={pos.x} y={pos.y} w={w} h={h} glow={peek ? 'me' : undefined} z={100} />
+          <Sprite src={ownSrc} x={pos.x} y={pos.y} w={w} h={h} glow={peek ? 'me' : undefined} z={100} />
           <div
             className="pointer-events-none absolute z-[200] -translate-x-1/2 -translate-y-full animate-bounce text-xl"
             style={{ left: `${(pos.x + w / 2) * 100}%`, top: `${pos.y * 100}%` }}
@@ -682,21 +768,40 @@ function Hider({ g, img }) {
       </div>
 
       <div className="mx-auto w-full max-w-[340px] space-y-3">
-        <SkinEditor g={g} img={img} pos={pos} skin={skin} peek={peek} onPaint={paint} onPick={(x, y) => pickColor(img?.sample(x, y))} />
+        <SkinEditor
+          g={g}
+          img={img}
+          pos={pos}
+          skin={skin.current}
+          ver={ver}
+          peek={peek}
+          tool={tool}
+          color={color}
+          size={size}
+          onBegin={saveUndo}
+          onChange={changed}
+          onPick={(x, y) => pickColor(img?.sample(x, y))}
+        />
         <div className="flex flex-wrap items-center justify-center gap-1 rounded-2xl bg-indigo-50 p-1">
           {[
-            [1, '• קטן'],
-            [2, '⬤ גדול'],
-            ['all', '🪣 הכל'],
+            ['brush', '🖌️ מכחול'],
+            ['pick', '💧 טפטפת'],
           ].map(([k, label]) => (
-            <button key={k} onClick={() => setBrush(k)} className={`rounded-xl px-3 py-1 font-display ${brush === k ? 'bg-white text-grape shadow' : 'text-indigo-400'}`}>
+            <button key={k} onClick={() => setTool(k)} className={`rounded-xl px-3 py-1 font-display ${tool === k ? 'bg-white text-grape shadow' : 'text-indigo-400'}`}>
               {label}
             </button>
           ))}
+          <button onClick={fillAll} className="rounded-xl px-3 py-1 font-display text-indigo-400 hover:bg-white">
+            🪣 הכל
+          </button>
           <button onClick={() => setPeek((p) => !p)} className={`rounded-xl px-3 py-1 font-display ${peek ? 'bg-white text-grape shadow' : 'text-indigo-400'}`}>
             👁️ מה מאחוריי
           </button>
+          <button onClick={goBack} disabled={!canUndo} className="rounded-xl px-3 py-1 font-display text-indigo-500 hover:bg-white disabled:opacity-40" title="Ctrl+Z">
+            ↩️ אחורה
+          </button>
         </div>
+        <BrushSize size={size} setSize={setSize} min={1} max={40} color={color} scale={2} />
         <div className="flex items-center justify-center gap-2">
           <span className="h-9 w-9 shrink-0 rounded-xl border-4 border-white shadow" style={{ background: color }} title="הצבע הנוכחי" />
           <Swatches color={color} setColor={setColor} extra={recent} />
@@ -711,35 +816,48 @@ function Hider({ g, img }) {
   );
 }
 
-// עורך העור: הרקע שמאחוריכם בהגדלה, והגוף מעליו. לחיצה על הגוף = צביעה, מחוץ לגוף = לקחת צבע
-const MARGIN_C = 3;
-const MARGIN_R = 2;
-const EC = COLS + MARGIN_C * 2;
-const ER = ROWS + MARGIN_R * 2;
-const PX = 20;
+// גודל המכחול: פס גלילה עם תצוגה של העובי
+function BrushSize({ size, setSize, min, max, color, scale = 1 }) {
+  const dot = Math.max(3, Math.min(36, size * scale));
+  return (
+    <div dir="ltr" className="flex items-center gap-3 rounded-2xl bg-indigo-50 px-3 py-1.5">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center">
+        <span className="rounded-full border border-white shadow" style={{ width: dot, height: dot, background: color }} />
+      </span>
+      <input type="range" min={min} max={max} value={size} onChange={(e) => setSize(Number(e.target.value))} className="w-full accent-grape" title="גודל המכחול" />
+    </div>
+  );
+}
 
-function SkinEditor({ g, img, pos, skin, peek, onPaint, onPick }) {
+// עורך העור: הרקע שמאחוריכם בהגדלה, והגוף מעליו. מציירים חופשי - רק מה שבתוך הגוף נשאר
+const MX = 0.35; // שוליים מסביב לגוף, ביחידות גוף
+const MY = 0.15;
+const U = 180; // פיקסלים ליחידת גוף בעורך
+const EW = Math.round((1 + MX * 2) * U);
+const EH = Math.round((2 + MY * 2) * U);
+
+function SkinEditor({ g, img, pos, skin, ver, peek, tool, color, size, onBegin, onChange, onPick }) {
   const ref = useRef();
-  const painting = useRef(false);
+  const body = useRef(null);
+  const last = useRef(null);
   const { w, h } = bodyBox(g);
 
   useEffect(() => {
     const ctx = ref.current.getContext('2d');
     ctx.fillStyle = '#334155';
-    ctx.fillRect(0, 0, EC * PX, ER * PX);
+    ctx.fillRect(0, 0, EW, EH);
     const src = img?.canvas;
     if (src) {
       // האזור בתמונה שמאחורי הגוף + שוליים
-      const cw = (w * src.width) / COLS;
-      const ch = (h * src.height) / ROWS;
-      let sx = pos.x * src.width - MARGIN_C * cw;
-      let sy = pos.y * src.height - MARGIN_R * ch;
-      let sw = EC * cw;
-      let sh = ER * ch;
+      const cu = (h * src.height) / 2; // פיקסלים בתמונה ליחידת גוף
+      let sx = pos.x * src.width - MX * cu;
+      let sy = pos.y * src.height - MY * cu;
+      let sw = (EW / U) * cu;
+      let sh = (EH / U) * cu;
       let dx = 0;
       let dy = 0;
-      let dw = EC * PX;
-      let dh = ER * PX;
+      let dw = EW;
+      let dh = EH;
       // חיתוך לגבולות התמונה
       if (sx < 0) {
         dx = (-sx / sw) * dw;
@@ -765,59 +883,73 @@ function SkinEditor({ g, img, pos, skin, peek, onPaint, onPick }) {
       }
       if (sw > 0 && sh > 0) ctx.drawImage(src, sx, sy, sw, sh, dx, dy, dw, dh);
     }
-    ctx.globalAlpha = peek ? 0.25 : 1;
-    for (let r = 0; r < ROWS; r++) {
-      for (let c = 0; c < COLS; c++) {
-        const k = CELL[r][c];
-        if (k < 0) continue;
-        ctx.fillStyle = `#${skin[k]}`;
-        ctx.fillRect((c + MARGIN_C) * PX, (r + MARGIN_R) * PX, PX, PX);
-      }
+    if (!body.current) {
+      body.current = document.createElement('canvas');
+      body.current.width = U;
+      body.current.height = U * 2;
     }
+    drawMasked(skin, body.current, U);
+    ctx.globalAlpha = peek ? 0.3 : 1;
+    ctx.drawImage(body.current, MX * U, MY * U);
     ctx.globalAlpha = 1;
-    // קווי מתאר דקים לגוף
-    ctx.strokeStyle = peek ? 'rgba(255,210,63,0.9)' : 'rgba(255,255,255,0.18)';
-    ctx.lineWidth = 1;
-    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (CELL[r][c] >= 0) ctx.strokeRect((c + MARGIN_C) * PX + 0.5, (r + MARGIN_R) * PX + 0.5, PX - 1, PX - 1);
-  }, [img, pos, skin, peek, w, h]);
+  }, [img, pos, skin, ver, peek, w, h]);
 
+  // נקודה בעורך → פיקסל בעור
   function at(e) {
     const r = ref.current.getBoundingClientRect();
-    const px = ((e.clientX - r.left) / r.width) * EC;
-    const py = ((e.clientY - r.top) / r.height) * ER;
-    return { c: Math.floor(px) - MARGIN_C, r: Math.floor(py) - MARGIN_R, px, py };
+    const bu = (((e.clientX - r.left) / r.width) * EW) / U - MX;
+    const bv = (((e.clientY - r.top) / r.height) * EH) / U - MY;
+    return { bu, bv, x: bu * SKIN_W, y: bv * SKIN_W };
   }
 
-  function handle(e, first) {
-    const { c, r, px, py } = at(e);
-    if (!peek && inBody(c, r)) {
-      if (first) painting.current = true;
-      if (painting.current) onPaint(c, r);
-    } else if (first) {
-      // המיקום בתמונה של הנקודה שנלחצה
-      onPick(pos.x + ((px - MARGIN_C) / COLS) * w, pos.y + ((py - MARGIN_R) / ROWS) * h);
+  function stroke(from, to) {
+    const ctx = skin.getContext('2d');
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = size;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    if (from) {
+      ctx.beginPath();
+      ctx.moveTo(from.x, from.y);
+      ctx.lineTo(to.x, to.y);
+      ctx.stroke();
+    } else {
+      ctx.beginPath();
+      ctx.arc(to.x, to.y, size / 2, 0, Math.PI * 2);
+      ctx.fill();
     }
+    onChange();
   }
 
   return (
     <div dir="ltr">
       <canvas
         ref={ref}
-        width={EC * PX}
-        height={ER * PX}
+        width={EW}
+        height={EH}
         className="mx-auto block w-full max-w-[300px] rounded-2xl shadow-lg"
         style={{ touchAction: 'none', cursor: 'crosshair' }}
         onPointerDown={(e) => {
           e.preventDefault();
+          const p = at(e);
+          if (tool === 'pick' || peek) return onPick(pos.x + p.bu * w, pos.y + (p.bv * h) / 2);
           e.currentTarget.setPointerCapture(e.pointerId);
-          handle(e, true);
+          onBegin();
+          last.current = p;
+          stroke(null, p);
         }}
-        onPointerMove={(e) => painting.current && handle(e, false)}
-        onPointerUp={() => (painting.current = false)}
-        onPointerCancel={() => (painting.current = false)}
+        onPointerMove={(e) => {
+          if (!last.current) return;
+          const p = at(e);
+          stroke(last.current, p);
+          last.current = p;
+        }}
+        onPointerUp={() => (last.current = null)}
+        onPointerCancel={() => (last.current = null)}
       />
       <p dir="rtl" className="mt-1 text-center text-xs text-indigo-400">
-        על הגוף = צביעה · מסביב = לקחת צבע · ״מה מאחוריי״ = לראות ולקחת צבע מתחת לגוף
+        מציירים חופשי על הגוף · 💧 טפטפת = לקחת צבע מהרקע · ״מה מאחוריי״ = לראות מה מתחת לגוף
       </p>
     </div>
   );
