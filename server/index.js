@@ -23,7 +23,8 @@ app.get('/health', (req, res) => res.json({ ok: true }));
 app.get('/img/:code/:token', (req, res) => {
   const f = roomFile(req.params.code, req.params.token);
   if (!f) return res.sendStatus(404);
-  res.set('Cache-Control', 'private, max-age=3600').type(f.type).send(f.buf);
+  // CORS: צבע ומחבואים קורא את צבעי התמונה בקנבס (גם כשהלקוח בכתובת אחרת)
+  res.set({ 'Cache-Control': 'private, max-age=3600', 'Access-Control-Allow-Origin': '*' }).type(f.type).send(f.buf);
 });
 
 // בפרודקשן השרת מגיש גם את הלקוח הבנוי

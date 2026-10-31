@@ -425,6 +425,35 @@ export const GAME_META = {
       { key: 'rate', label: 'דירוג היצירות', def: 60 },
     ],
   },
+  seek: {
+    name: 'צבע ומחבואים',
+    emoji: '🦎',
+    genres: ['זמן אמת', 'יצירתי'],
+    color: 'from-lime-500 to-emerald-700',
+    desc: 'המחפש בוחר או מצייר תמונה. כל השאר הם אנשים קטנים שזזים עליה (WASD) וצובעים את עצמם כדי להיטמע ברקע - ואז המחפש צריך למצוא את כולם!',
+    minPlayers: 2,
+    settings: [
+      { key: 'rounds', label: 'מספר סיבובים', type: 'number', min: 1, max: 30, def: (n) => n },
+      { key: 'seekers', label: 'כמה מחפשים בכל סיבוב', type: 'number', min: 1, max: 10, def: () => 1 },
+      {
+        key: 'size',
+        label: 'גודל המתחבאים',
+        type: 'select',
+        options: [
+          { value: 'small', label: '🐜 קטנים' },
+          { value: 'medium', label: '🧍 רגילים' },
+          { value: 'large', label: '🦒 גדולים' },
+        ],
+        def: () => 'medium',
+      },
+    ],
+    note: 'המחפשים מתחלפים כל סיבוב. כל מתחבא שנמצא = נקודה לכל המחפשים, וכל מתחבא שלא נמצא מקבל את אותו מספר נקודות כמו המחפשים. פספוס = רגע המתנה לפני הלחיצה הבאה.',
+    timers: [
+      { key: 'choose', label: 'בחירת התמונה', def: 60 },
+      { key: 'hide', label: 'התחבאות וצביעה', def: 90 },
+      { key: 'seek', label: 'חיפוש', def: 60 },
+    ],
+  },
 };
 
 const FINAL_FORMS = { כ: 'ך', מ: 'ם', נ: 'ן', פ: 'ף', צ: 'ץ' };

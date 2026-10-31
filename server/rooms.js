@@ -181,6 +181,16 @@ function broadcast(room) {
   }
 }
 
+// סנכרון במנות: לפעולות שקורות הרבה פעמים בשנייה (תנועה בצבע ומחבואים) - שידור אחד לכל LAZY_MS
+const LAZY_MS = 90;
+function broadcastSoon(room) {
+  if (room.lazyTimer) return;
+  room.lazyTimer = setTimeout(() => {
+    room.lazyTimer = null;
+    if (rooms.has(room.code)) broadcast(room);
+  }, LAZY_MS);
+}
+
 function scheduleCleanup(room) {
   clearTimeout(room.cleanupTimer);
   if (room.players.some((p) => p.connected)) return;
@@ -425,15 +435,17 @@ export function registerSocket(io, socket) {
     const { room, pid, api } = ctx();
     if (!room || room.status !== 'game') return ack?.({ error: 'אין משחק פעיל' });
     if (!room.game.participants.includes(pid)) return ack?.({ error: 'תצטרף בסיבוב הבא 🙂' });
+    const game = GAMES[room.gameId];
     try {
-      const err = GAMES[room.gameId].action(room, api, pid, String(type), data);
+      const err = game.action(room, api, pid, String(type), data);
       if (err) return ack?.({ error: err });
       ack?.({ ok: true });
     } catch (e) {
       console.error('action error', e);
       ack?.({ error: 'משהו השתבש' });
     }
-    broadcast(room);
+    if (game.lazy?.includes(String(type))) broadcastSoon(room);
+    else broadcast(room);
   });
 
   // צ'אט של החדר - פעיל בלובי ובכל המשחקים
