@@ -35,6 +35,12 @@ function fixHosts(room) {
     if (next) room.hosts = [next.id, ...room.hosts.filter((id) => id !== next.id)];
   }
   if (room.hostRequests) room.hostRequests = room.hostRequests.filter((id) => getPlayer(room, id) && !isHostOf(room, id));
+  // הצבעות הוצאה: בלי מי שיצא (לא כמטרה ולא כמצביע), ובלי מארחים כמטרה
+  for (const [target, voters] of Object.entries(room.kickVotes || {})) {
+    const left = voters.filter((id) => getPlayer(room, id));
+    if (!getPlayer(room, target) || isHostOf(room, target) || !left.length) delete room.kickVotes[target];
+    else room.kickVotes[target] = left;
+  }
 }
 
 function emitTo(room, pid, event, data) {
@@ -259,6 +265,37 @@ function sanitizeProfile({ name, emoji }) {
 }
 
 // מי תויג בהודעה עם @שם (השם צריך להיגמר בסוף מילה, כדי ש-@דן לא יתפוס את דניאל)
+// כמה קולות צריך כדי להוציא: חצי מהמחוברים (מעוגל למעלה), ולפחות 2
+const kickNeeded = (room) => Math.max(2, Math.ceil(room.players.filter((p) => p.connected).length / 2));
+
+// מוצא שחקן לפי שם בתחילת הטקסט (השם הארוך ביותר שמתאים, כי יש שמות עם רווחים)
+function playerByName(room, text) {
+  const rest = text.trim().replace(/^@/, '');
+  return [...room.players]
+    .sort((a, b) => b.name.length - a.name.length)
+    .find((p) => rest === p.name || rest.startsWith(p.name + ' '));
+}
+
+// הודעת מערכת בצ'אט של כולם
+function systemChat(room, text) {
+  const m = { id: ++room.chatSeq, pid: null, system: true, text, mentions: [] };
+  room.chat.push(m);
+  if (room.chat.length > CHAT_MAX) room.chat.shift();
+  for (const p of room.players) if (p.connected && p.socketId) IO.to(p.socketId).emit('chat', m);
+}
+
+// הוצאת שחקן מהחדר (על ידי מארח או בהצבעה)
+function removePlayer(room, targetId, api) {
+  const target = getPlayer(room, targetId);
+  if (!target) return;
+  if (target.socketId) IO.to(target.socketId).emit('kicked');
+  room.players = room.players.filter((p) => p.id !== targetId);
+  if (room.wishes) delete room.wishes[targetId];
+  fixHosts(room);
+  if (room.status === 'game') GAMES[room.gameId].check?.(room, api);
+  broadcast(room);
+}
+
 // הודעה פרטית רואים רק השולח והנמען
 const canSee = (m, pid) => !m.to || m.to === pid || m.pid === pid;
 const chatFor = (room, pid) => room.chat.filter((m) => canSee(m, pid));
@@ -450,13 +487,7 @@ export function registerSocket(io, socket) {
   socket.on('host:kick', (targetId) => {
     const { room, pid, api } = ctx();
     if (!room || !isHostOf(room, pid) || targetId === pid) return;
-    const target = getPlayer(room, targetId);
-    if (!target) return;
-    if (target.socketId) io.to(target.socketId).emit('kicked');
-    room.players = room.players.filter((p) => p.id !== targetId);
-    fixHosts(room);
-    if (room.status === 'game') GAMES[room.gameId].check?.(room, api);
-    broadcast(room);
+    removePlayer(room, targetId, api);
   });
 
   // תשובה לבקשת /host: give - המארח מעביר את התפקיד, add - מארח נוסף, decline - לא
@@ -514,7 +545,7 @@ export function registerSocket(io, socket) {
   // צ'אט של החדר - פעיל בלובי ובכל המשחקים
   // אפשר לשלוח טקסט (לכולם) או { text, to } - הודעה פרטית לשחקן אחד
   socket.on('chat:send', (data, ack) => {
-    const { room, pid } = ctx();
+    const { room, pid, api } = ctx();
     const player = room && getPlayer(room, pid);
     const text = typeof data === 'object' && data ? data.text : data;
     const to = typeof data === 'object' && data ? data.to || null : null;
@@ -525,6 +556,36 @@ export function registerSocket(io, socket) {
     const now = Date.now();
     if (now - (player.lastChat || 0) < CHAT_GAP_MS) return ack?.({ error: 'לאט לאט 🙂' });
     player.lastChat = now;
+    // /kickvote @שם - הצבעה להוציא שחקן. כשחצי מהמחוברים הצביעו (לפחות 2) הוא בחוץ, גם בלי המארח.
+    // אי אפשר להצביע נגד מארח או נגד עצמך; לכתוב שוב על אותו שחקן מבטל את הקול
+    const kv = /^\/kickvote(?:\s+(.*))?$/is.exec(msg);
+    if (kv) {
+      const target = kv[1] && playerByName(room, kv[1]);
+      if (!target) return ack?.({ error: 'על מי? כתבו /kickvote @שם' });
+      if (target.id === pid) return ack?.({ error: 'אי אפשר להצביע נגד עצמך 😅' });
+      if (isHostOf(room, target.id)) return ack?.({ error: 'אי אפשר להוציא מארח 👑' });
+      room.kickVotes ||= {};
+      const voters = room.kickVotes[target.id] || [];
+      if (voters.includes(pid)) {
+        room.kickVotes[target.id] = voters.filter((id) => id !== pid);
+        if (!room.kickVotes[target.id].length) delete room.kickVotes[target.id];
+        const n = room.kickVotes[target.id]?.length || 0;
+        systemChat(room, `${player.emoji} ${player.name} ביטל/ה את ההצבעה להוציא את ${target.name} (${n}/${kickNeeded(room)})`);
+        return ack?.({ ok: true });
+      }
+      room.kickVotes[target.id] = [...voters, pid];
+      // סופרים רק מצביעים מחוברים
+      const n = room.kickVotes[target.id].filter((id) => getPlayer(room, id)?.connected).length;
+      const need = kickNeeded(room);
+      if (n >= need) {
+        delete room.kickVotes[target.id];
+        systemChat(room, `🗳️ ${target.emoji} ${target.name} הוצא/ה מהחדר בהצבעה (${n}/${need})`);
+        removePlayer(room, target.id, api);
+      } else {
+        systemChat(room, `🗳️ ${player.emoji} ${player.name} מצביע/ה להוציא את ${target.name} (${n}/${need}) · /kickvote @${target.name} כדי להצטרף`);
+      }
+      return ack?.({ ok: true });
+    }
     // /host - בקשה להיות מארח (לא נכנס לצ'אט)
     if (/^\/host$/i.test(msg)) {
       if (isHostOf(room, pid)) return ack?.({ error: 'אתם כבר מארחים 👑' });

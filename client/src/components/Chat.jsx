@@ -128,8 +128,9 @@ export default function Chat({ tracker }) {
 
   // השלמה אוטומטית: הטקסט מה-@ האחרון ועד הסמן
   const before = text.slice(0, caret);
-  // אחרי "/chat " משלימים שם גם בלי @
-  const cmd = /^\/chat\s+/i.exec(before);
+  // אחרי "/chat " או "/kickvote " משלימים שם גם בלי @
+  const cmd = /^\/(chat|kickvote)\s+/i.exec(before);
+  const voting = !!cmd && cmd[1].toLowerCase() === 'kickvote';
   let at = -1;
   let query = null;
   if (cmd && !before.slice(cmd[0].length).includes('@')) {
@@ -148,6 +149,7 @@ export default function Chat({ tracker }) {
   const commands = [
     { cmd: '/chat', emoji: '🔒', label: '/chat @שם', hint: 'הודעה פרטית', run: () => fill('/chat ') },
     peer && { cmd: '/chat', emoji: '👥', label: '/chat', hint: 'חזרה לצ׳אט של כולם', run: () => (setPeer(null), fill('')) },
+    { cmd: '/kickvote', emoji: '🗳️', label: '/kickvote @שם', hint: 'הצבעה להוציא שחקן', run: () => fill('/kickvote ') },
     !isHost && { cmd: '/host', emoji: '👑', label: '/host', hint: 'בקשה להיות מארח', run: () => (fill(''), sendText('/host')) },
   ].filter(Boolean);
   const suggestions =
@@ -155,7 +157,7 @@ export default function Chat({ tracker }) {
       ? commands.filter((c) => c.cmd.startsWith(cmdQuery)).map((c) => ({ key: c.label, ...c }))
       : query != null && query.length <= 16
         ? state.players
-            .filter((p) => p.id !== state.me && p.name.startsWith(query) && p.name !== query)
+            .filter((p) => p.id !== state.me && !(voting && state.hosts?.includes(p.id)) && p.name.startsWith(query) && p.name !== query)
             .slice(0, 6)
             .map((p) => ({ key: p.id, emoji: p.emoji, label: p.name, avatar: true, run: () => mention(p.name) }))
         : [];
@@ -276,6 +278,12 @@ export default function Chat({ tracker }) {
             </p>
           )}
           {convMsgs.map((m) => {
+            if (m.system)
+              return (
+                <div key={m.id} dir="auto" className="mx-auto w-fit max-w-[95%] rounded-xl bg-indigo-100/80 px-3 py-1 text-center text-xs font-semibold text-indigo-600">
+                  {m.text}
+                </div>
+              );
             const mine = m.pid === state.me;
             const tagged = !mine && m.mentions?.includes(state.me);
             return (
