@@ -173,7 +173,7 @@ function FlipPhase({ g }) {
           </div>
           {!g.won && <SecretQuestion question={g.question} label="השאלה הייתה" />}
           {g.won && (mine || g.asker === state.me) && <SecretQuestion question={g.question} label="🤫 רק אתם יודעים" />}
-          {(state.hostId === state.me || mine) && (
+          {(state.hosts?.includes(state.me) || mine) && (
             <button className="btn-primary mt-4" onClick={() => act('next')}>
               לתור הבא ←
             </button>

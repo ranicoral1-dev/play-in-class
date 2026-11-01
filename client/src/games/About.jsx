@@ -160,7 +160,7 @@ function AnswersPhase({ g }) {
           </button>
         </div>
       )}
-      {revealed && (state.hostId === state.me || g.amSubject) && (
+      {revealed && (state.hosts?.includes(state.me) || g.amSubject) && (
         <div className="mt-5 flex justify-center">
           <button className="btn-primary" onClick={() => act('next')}>
             {g.round >= g.totalRounds ? 'לטבלה הסופית 🏆' : 'לסיבוב הבא ←'}

@@ -50,7 +50,7 @@ function DrumRoll() {
 
 function Results() {
   const { state, showToast } = useRoom();
-  const isHost = state.hostId === state.me;
+  const isHost = state.hosts?.includes(state.me);
   const players = state.players.filter((p) => p.inGame).sort((a, b) => b.score - a.score);
   const top = players[0]?.score ?? 0;
   const winners = players.filter((p) => p.score === top && top > 0);

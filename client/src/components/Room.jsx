@@ -1,7 +1,7 @@
-import { useState } from 'react';
-import { socket } from '../socket.js';
+import { useEffect, useState } from 'react';
+import { emit, socket } from '../socket.js';
 import { GAME_META } from '../lib.js';
-import { useRoom, Avatar } from './ui.jsx';
+import { useRoom, Avatar, PlayerTag } from './ui.jsx';
 import Lobby from './Lobby.jsx';
 import Final from './Final.jsx';
 import Countdown from './Countdown.jsx';
@@ -43,6 +43,7 @@ export default function Room() {
   return (
     <div className="mx-auto max-w-6xl px-3 pb-10 pt-4 sm:px-6">
       <RoomHeader tracker={tracker} onEditProfile={() => setEditing(true)} />
+      <HostRequests />
       <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_280px]">
         <main className="min-w-0">
           {(state.status === 'lobby' || state.status === 'countdown') && <Lobby />}
@@ -73,7 +74,7 @@ export default function Room() {
 
 function RoomHeader({ tracker, onEditProfile }) {
   const { state, leave, showToast } = useRoom();
-  const isHost = state.hostId === state.me;
+  const isHost = state.hosts?.includes(state.me);
   const me = state.players.find((p) => p.id === state.me);
 
   function copyLink() {
@@ -140,6 +141,42 @@ function RoomHeader({ tracker, onEditProfile }) {
   );
 }
 
+// בקשות /host מהצ'אט: המארח בוחר להעביר, להוסיף או לדחות
+function HostRequests() {
+  const { state, showToast } = useRoom();
+  const requests = state.hostRequests || [];
+
+  // מי שביקש מקבל הודעה כשעונים לו
+  useEffect(() => {
+    socket.on('host:reply', showToast);
+    return () => socket.off('host:reply', showToast);
+  }, [showToast]);
+
+  if (!requests.length) return null;
+  return (
+    <div className="mt-4 space-y-2">
+      {requests.map((id) => (
+        <div key={id} className="card flex flex-wrap items-center justify-between gap-3 p-3 animate-pop">
+          <span className="flex items-center gap-1.5 font-semibold">
+            <PlayerTag id={id} /> רוצה להיות מארח 👑
+          </span>
+          <span className="flex flex-wrap gap-2">
+            <button className="btn-primary px-3 py-1.5 text-sm" title="אתם כבר לא מארחים, והוא כן" onClick={() => socket.emit('host:answer', { pid: id, answer: 'give' })}>
+              🔁 להעביר
+            </button>
+            <button className="btn-pink px-3 py-1.5 text-sm" title="שניכם מארחים" onClick={() => socket.emit('host:answer', { pid: id, answer: 'add' })}>
+              ➕ להוסיף
+            </button>
+            <button className="rounded-xl bg-indigo-50 px-3 py-1.5 text-sm font-bold text-indigo-500 hover:bg-indigo-100" onClick={() => socket.emit('host:answer', { pid: id, answer: 'decline' })}>
+              🙅 לדחות
+            </button>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SoundButton() {
   const [muted, setM] = useState(isMuted());
   return (
@@ -157,9 +194,9 @@ function SoundButton() {
 }
 
 function Roster({ onEditProfile }) {
-  const { state } = useRoom();
+  const { state, showToast } = useRoom();
   const [open, setOpen] = useState(false);
-  const isHost = state.hostId === state.me;
+  const isHost = state.hosts?.includes(state.me);
   const showScores = state.status !== 'lobby';
   const players = [...state.players].sort((a, b) => (showScores ? b.score - a.score : 0));
   const online = state.players.filter((p) => p.connected).length;
@@ -190,10 +227,24 @@ function Roster({ onEditProfile }) {
                   ✏️
                 </button>
               )}
-              {p.id === state.hostId && <span title="מארח החדר"> 👑</span>}
+              {state.hosts?.includes(p.id) && <span title="מארח החדר"> 👑</span>}
               {!p.connected && <span className="text-xs"> (מנותק)</span>}
             </span>
             {showScores && <span className="font-display text-lg text-grape">{p.score}</span>}
+            {isHost && (
+              <button
+                title={state.hosts.includes(p.id) ? 'להוריד ממארח' : 'להפוך למארח'}
+                className={`text-sm ${state.hosts.includes(p.id) ? 'hidden text-slate-400 hover:text-bubble group-hover:inline' : 'hidden opacity-50 grayscale hover:opacity-100 hover:grayscale-0 group-hover:inline'}`}
+                onClick={async () => {
+                  const on = !state.hosts.includes(p.id);
+                  if (!on && p.id === state.me && !confirm('לוותר על המארח?')) return;
+                  const res = await emit('host:set', { pid: p.id, on });
+                  if (res.error) showToast(res.error);
+                }}
+              >
+                {state.hosts.includes(p.id) ? '👑✕' : '👑'}
+              </button>
+            )}
             {isHost && p.id !== state.me && (
               <button
                 title="הוצאה מהחדר"

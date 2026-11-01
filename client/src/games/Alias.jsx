@@ -89,7 +89,7 @@ function TeamName({ g, i }) {
 
 function TeamsPhase({ g }) {
   const { state, act } = useRoom();
-  const isHost = state.hostId === state.me;
+  const isHost = state.hosts?.includes(state.me);
   return (
     <div className="animate-rise">
       <p className="mb-1 text-center font-display text-2xl">מתחלקים לקבוצות 🤝</p>

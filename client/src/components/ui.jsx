@@ -129,7 +129,7 @@ export function GameHeader({ title, round, totalRounds, noTimer = false, childre
 // המארח יכול לדלג על שלב (שימושי במיוחד כשמשחקים בלי זמן)
 function SkipButton() {
   const { state } = useRoom();
-  if (state.hostId !== state.me || !state.canSkip) return null;
+  if (!state.hosts?.includes(state.me) || !state.canSkip) return null;
   return (
     <button
       title="דילוג לשלב הבא"
@@ -161,7 +161,7 @@ export function Waiting({ emoji = '⏳', children }) {
 
 export function NextButton({ label = 'הבא ←' }) {
   const { state, act } = useRoom();
-  if (state.hostId !== state.me) {
+  if (!state.hosts?.includes(state.me)) {
     return (
       <p className="mt-4 text-center text-sm text-indigo-400">
         {state.settings.timed ? 'ממשיכים אוטומטית בעוד רגע…' : 'מחכים שהמארח ימשיך…'}

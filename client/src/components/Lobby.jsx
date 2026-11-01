@@ -35,12 +35,14 @@ function Fans({ ids, className = '' }) {
 
 export default function Lobby() {
   const { state, showToast } = useRoom();
-  const isHost = state.hostId === state.me;
+  const isHost = state.hosts?.includes(state.me);
   const count = state.players.filter((p) => p.connected).length;
   const [selected, setSelected] = useState(state.gameId || null);
   const [values, setValues] = useState({});
   const [busy, setBusy] = useState(false);
-  const [genre, setGenre] = useState(null);
+  // אפשר לבחור כמה נושאים - מוצגים רק משחקים שיש להם את כולם
+  const [genres, setGenres] = useState([]);
+  const toggleGenre = (name) => setGenres((old) => (old.includes(name) ? old.filter((x) => x !== name) : [...old, name]));
   const wishes = state.wishes || {};
   const myWish = wishes[state.me];
   // המארח בוחר בעצמו; כל השאר רואים את מה שהמארח בוחר עכשיו
@@ -117,9 +119,13 @@ export default function Lobby() {
             <div>
               <h2 className="font-display text-2xl">מחכים שהמארח יבחר משחק…</h2>
               <p className="mt-1 flex items-center gap-1 text-indigo-500">
-                המארח: <PlayerTag id={state.hostId} />
+                {state.hosts?.length > 1 ? 'המארחים:' : 'המארח:'}
+                {(state.hosts || [state.hostId]).map((id) => (
+                  <PlayerTag key={id} id={id} />
+                ))}
               </p>
               <p className="mt-1 text-sm text-indigo-400">רוצים משחק או הגדרה מסוימת? לחצו עליהם והמארח יראה 🙋</p>
+              <p className="mt-0.5 text-sm text-indigo-400">רוצים להיות מארחים? כתבו /host בצ׳אט 👑</p>
             </div>
           </div>
         )}
@@ -129,8 +135,8 @@ export default function Lobby() {
         {[null, ...Object.keys(GENRES)].map((name) => (
           <button
             key={name ?? 'all'}
-            onClick={() => setGenre(name)}
-            className={`chip py-1.5 transition ${genre === name ? 'bg-sun text-ink shadow' : 'bg-white/15 text-white hover:bg-white/25'}`}
+            onClick={() => (name ? toggleGenre(name) : setGenres([]))}
+            className={`chip py-1.5 transition ${(name ? genres.includes(name) : !genres.length) ? 'bg-sun text-ink shadow' : 'bg-white/15 text-white hover:bg-white/25'}`}
           >
             {name ? `${GENRES[name]} ${name}` : '✨ הכל'}
           </button>
@@ -139,7 +145,7 @@ export default function Lobby() {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {Object.entries(GAME_META)
-          .filter(([, g]) => !genre || g.genres.includes(genre))
+          .filter(([, g]) => genres.every((name) => g.genres.includes(name)))
           .map(([id, g], i) => {
           const active = shownId === id;
           const enough = count >= g.minPlayers;
@@ -176,6 +182,9 @@ export default function Lobby() {
           );
         })}
       </div>
+      {!Object.values(GAME_META).some((g) => genres.every((name) => g.genres.includes(name))) && (
+        <p className="rounded-3xl bg-white/10 p-4 text-center font-bold text-white">אין משחק שיש לו את כל הנושאים האלה 🤷 נסו להוריד אחד</p>
+      )}
 
       {shownId && shown && (
         <div className="card animate-rise">

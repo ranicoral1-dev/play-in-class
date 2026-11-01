@@ -22,6 +22,26 @@ function getPlayer(room, pid) {
   return room.players.find((p) => p.id === pid);
 }
 
+// אפשר כמה מארחים בחדר. hosts[0] הוא המארח ה"ראשי" (בשביל התצוגה)
+function isHostOf(room, pid) {
+  return room.hosts.includes(pid);
+}
+
+// מנקה מארחים שיצאו, ואם לא נשאר מארח מחובר - הראשון שמחובר נהיה מארח
+function fixHosts(room) {
+  room.hosts = room.hosts.filter((id) => getPlayer(room, id));
+  if (!room.hosts.some((id) => getPlayer(room, id).connected)) {
+    const next = room.players.find((p) => p.connected) || room.players[0];
+    if (next) room.hosts = [next.id, ...room.hosts.filter((id) => id !== next.id)];
+  }
+  if (room.hostRequests) room.hostRequests = room.hostRequests.filter((id) => getPlayer(room, id) && !isHostOf(room, id));
+}
+
+function emitTo(room, pid, event, data) {
+  const p = getPlayer(room, pid);
+  if (p?.connected && p.socketId) IO.to(p.socketId).emit(event, data);
+}
+
 // קבצים שמשחק מגיש בכתובת נפרדת (למשל תמונות בצור ריל) - לא נשלחים בתוך המצב
 export function roomFile(code, token) {
   const room = rooms.get(code);
@@ -109,7 +129,7 @@ function makeApi(room) {
       if (p && pts) p.score += pts;
     },
     isHost(pid) {
-      return room.hostId === pid;
+      return isHostOf(room, pid);
     },
     endGame() {
       api.clearTimer();
@@ -151,7 +171,10 @@ function viewFor(room, pid) {
   return {
     code: room.code,
     me: pid,
-    hostId: room.hostId,
+    hostId: room.hosts[0],
+    hosts: room.hosts,
+    // בקשות /host שמחכות לתשובה - רק המארחים רואים
+    hostRequests: isHostOf(room, pid) ? room.hostRequests || [] : [],
     status: room.status,
     gameId: room.gameId,
     settings: publicSettings(room.settings),
@@ -273,7 +296,7 @@ export function registerSocket(io, socket) {
       player = { id: pid, ...profile, score: 0, connected: true, socketId: socket.id };
       room.players.push(player);
     }
-    if (!getPlayer(room, room.hostId)?.connected) room.hostId = pid;
+    if (!room.hosts.some((id) => getPlayer(room, id)?.connected)) room.hosts = [pid, ...room.hosts.filter((id) => id !== pid)];
     socket.data.code = room.code;
     socket.data.pid = pid;
     socket.join(room.code);
@@ -287,7 +310,8 @@ export function registerSocket(io, socket) {
     const code = genCode();
     const room = {
       code,
-      hostId: pid,
+      hosts: [pid],
+      hostRequests: [],
       players: [],
       status: 'lobby',
       gameId: null,
@@ -332,7 +356,7 @@ export function registerSocket(io, socket) {
       rooms.delete(room.code);
       return;
     }
-    if (room.hostId === pid) room.hostId = (room.players.find((p) => p.connected) || room.players[0]).id;
+    fixHosts(room);
     if (room.status === 'game') GAMES[room.gameId].check?.(room, api);
     broadcast(room);
   });
@@ -340,7 +364,7 @@ export function registerSocket(io, socket) {
   socket.on('host:start', ({ gameId, settings } = {}, ack) => {
     const { room, pid, api } = ctx();
     if (!room) return ack?.({ error: 'אין חדר' });
-    if (room.hostId !== pid) return ack?.({ error: 'רק המארח יכול להתחיל' });
+    if (!isHostOf(room, pid)) return ack?.({ error: 'רק המארח יכול להתחיל' });
     const game = GAMES[gameId];
     if (!game) return ack?.({ error: 'משחק לא קיים' });
     const connected = room.players.filter((p) => p.connected);
@@ -365,7 +389,7 @@ export function registerSocket(io, socket) {
   // המארח משתף את ההגדרות שהוא בוחר, כדי שכולם יראו
   socket.on('host:draft', ({ gameId, settings } = {}) => {
     const { room, pid } = ctx();
-    if (!room || room.hostId !== pid || room.status !== 'lobby') return;
+    if (!room || !isHostOf(room, pid) || room.status !== 'lobby') return;
     const draft = cleanDraft(gameId, settings);
     if (!draft || JSON.stringify(draft) === JSON.stringify(room.draft)) return;
     room.draft = draft;
@@ -376,7 +400,7 @@ export function registerSocket(io, socket) {
   socket.on('wish', ({ gameId, key, value } = {}) => {
     const { room, pid } = ctx();
     const player = room && getPlayer(room, pid);
-    if (!player || room.hostId === pid || room.status !== 'lobby' || !GAMES[gameId]) return;
+    if (!player || isHostOf(room, pid) || room.status !== 'lobby' || !GAMES[gameId]) return;
     room.wishes ||= {};
     const old = room.wishes[pid];
     let w = old && old.gameId === gameId ? { gameId, picks: { ...old.picks } } : { gameId, picks: {} };
@@ -390,14 +414,13 @@ export function registerSocket(io, socket) {
     }
     if (w) room.wishes[pid] = w;
     else delete room.wishes[pid];
-    const host = getPlayer(room, room.hostId);
-    if (w && host?.connected && host.socketId) IO.to(host.socketId).emit('wish', { pid, gameId, key: key ?? null, value: key == null ? null : w.picks[key] ?? null });
+    if (w) for (const h of room.hosts) emitTo(room, h, 'wish', { pid, gameId, key: key ?? null, value: key == null ? null : w.picks[key] ?? null });
     broadcast(room);
   });
 
   socket.on('host:lobby', () => {
     const { room, pid, api } = ctx();
-    if (!room || room.hostId !== pid) return;
+    if (!room || !isHostOf(room, pid)) return;
     api.clearTimer();
     api.clearTick();
     clearTimeout(room.countdownTimer);
@@ -408,26 +431,62 @@ export function registerSocket(io, socket) {
 
   socket.on('host:end', () => {
     const { room, pid, api } = ctx();
-    if (!room || room.hostId !== pid || room.status !== 'game') return;
+    if (!room || !isHostOf(room, pid) || room.status !== 'game') return;
     api.endGame();
     broadcast(room);
   });
 
   socket.on('host:skip', () => {
     const { room, pid, api } = ctx();
-    if (!room || room.hostId !== pid || room.status !== 'game') return;
+    if (!room || !isHostOf(room, pid) || room.status !== 'game') return;
     api.runTimer();
     broadcast(room);
   });
 
   socket.on('host:kick', (targetId) => {
     const { room, pid, api } = ctx();
-    if (!room || room.hostId !== pid || targetId === pid) return;
+    if (!room || !isHostOf(room, pid) || targetId === pid) return;
     const target = getPlayer(room, targetId);
     if (!target) return;
     if (target.socketId) io.to(target.socketId).emit('kicked');
     room.players = room.players.filter((p) => p.id !== targetId);
+    fixHosts(room);
     if (room.status === 'game') GAMES[room.gameId].check?.(room, api);
+    broadcast(room);
+  });
+
+  // תשובה לבקשת /host: give - המארח מעביר את התפקיד, add - מארח נוסף, decline - לא
+  socket.on('host:answer', ({ pid: target, answer } = {}) => {
+    const { room, pid } = ctx();
+    if (!room || !isHostOf(room, pid) || !room.hostRequests?.includes(target) || !getPlayer(room, target)) return;
+    room.hostRequests = room.hostRequests.filter((id) => id !== target);
+    const me = getPlayer(room, pid);
+    if (answer === 'give') {
+      room.hosts = [target, ...room.hosts.filter((id) => id !== pid && id !== target)];
+      emitTo(room, target, 'host:reply', `${me.emoji} ${me.name} העביר/ה לך את המארח 👑`);
+    } else if (answer === 'add') {
+      if (!room.hosts.includes(target)) room.hosts.push(target);
+      emitTo(room, target, 'host:reply', `${me.emoji} ${me.name} הוסיף/ה אותך כמארח 👑`);
+    } else {
+      emitTo(room, target, 'host:reply', 'הבקשה להיות מארח נדחתה 🙅');
+    }
+    fixHosts(room);
+    broadcast(room);
+  });
+
+  // מארח קובע מי מארח (גם בלי בקשה, וגם את עצמו) - אבל תמיד נשאר לפחות מארח אחד
+  socket.on('host:set', ({ pid: target, on } = {}, ack) => {
+    const { room, pid } = ctx();
+    if (!room || !isHostOf(room, pid) || !getPlayer(room, target)) return ack?.({ error: 'אין הרשאה' });
+    if (on) {
+      if (!room.hosts.includes(target)) room.hosts.push(target);
+    } else {
+      const rest = room.hosts.filter((id) => id !== target);
+      if (!rest.some((id) => getPlayer(room, id)?.connected)) return ack?.({ error: 'חייב להישאר לפחות מארח אחד' });
+      room.hosts = rest;
+    }
+    fixHosts(room);
+    ack?.({ ok: true });
     broadcast(room);
   });
 
@@ -459,6 +518,14 @@ export function registerSocket(io, socket) {
     const now = Date.now();
     if (now - (player.lastChat || 0) < CHAT_GAP_MS) return ack?.({ error: 'לאט לאט 🙂' });
     player.lastChat = now;
+    // /host - בקשה להיות מארח (לא נכנס לצ'אט)
+    if (/^\/host$/i.test(msg)) {
+      if (isHostOf(room, pid)) return ack?.({ error: 'אתם כבר מארחים 👑' });
+      room.hostRequests ||= [];
+      if (!room.hostRequests.includes(pid)) room.hostRequests.push(pid);
+      broadcast(room);
+      return ack?.({ ok: true, notice: 'הבקשה נשלחה למארח 👑' });
+    }
     const m = {
       id: ++room.chatSeq,
       pid,
@@ -493,10 +560,11 @@ export function registerSocket(io, socket) {
     if (!player || player.socketId !== socket.id) return;
     player.connected = false;
     player.socketId = null;
-    if (room.hostId === pid) {
-      const next = room.players.find((p) => p.connected);
-      if (next) room.hostId = next.id;
+    // מארח שהתנתק נשאר מארח אם יש עוד מארח מחובר; אחרת התפקיד עובר למישהו מחובר
+    if (isHostOf(room, pid) && !room.hosts.some((id) => getPlayer(room, id)?.connected)) {
+      room.hosts = room.hosts.filter((id) => id !== pid);
     }
+    fixHosts(room);
     if (room.status === 'game') GAMES[room.gameId].check?.(room, api);
     broadcast(room);
     scheduleCleanup(room);

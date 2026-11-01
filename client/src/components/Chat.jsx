@@ -144,9 +144,9 @@ export default function Chat({ tracker }) {
     setCaret(0);
     const res = await emit('chat:send', msg);
     if (res.error) {
-      setText(msg);
+      if (msg !== '/host') setText(msg);
       showToast(res.error);
-    }
+    } else if (res.notice) showToast(res.notice);
   }
 
   return (
@@ -204,7 +204,7 @@ export default function Chat({ tracker }) {
           <input
             ref={inputRef}
             className="input min-w-0 flex-1 py-2 text-base"
-            placeholder={closed ? 'הצ׳אט סגור במשחק הזה 🤫' : 'כתבו הודעה… (@ לתיוג)'}
+            placeholder={closed ? 'הצ׳אט סגור במשחק הזה 🤫' : 'כתבו הודעה… (@ לתיוג, /host לבקש מארח)'}
             disabled={closed}
             maxLength={200}
             value={text}
