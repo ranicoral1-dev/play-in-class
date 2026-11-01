@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { emit, socket } from '../socket.js';
 import { GAME_META, GENRES } from '../lib.js';
 import { useRoom, PlayerTag } from './ui.jsx';
+import { PICK_GAME } from './Search.jsx';
 
 // מה שחקן ביקש, בשביל ההודעה למארח
 function wishText(gameId, key, value) {
@@ -49,6 +50,28 @@ export default function Lobby() {
   const shownId = isHost ? selected : state.draft?.gameId || null;
   const gameFans = (id) => Object.keys(wishes).filter((pid) => wishes[pid].gameId === id);
   const settingFans = (key, v) => Object.keys(wishes).filter((pid) => wishes[pid].gameId === shownId && wishes[pid].picks[key] === v);
+  const [flash, setFlash] = useState(null);
+  const isHostRef = useRef(isHost);
+  isHostRef.current = isHost;
+
+  // משחק שנבחר בחיפוש: מנקים סינון, גוללים אליו, והמארח גם בוחר אותו
+  useEffect(() => {
+    let t;
+    const onPick = (e) => {
+      const id = e.detail;
+      setGenres([]);
+      if (isHostRef.current) setSelected(id);
+      setFlash(id);
+      clearTimeout(t);
+      t = setTimeout(() => setFlash(null), 1600);
+      requestAnimationFrame(() => document.getElementById(`game-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
+    };
+    window.addEventListener(PICK_GAME, onPick);
+    return () => {
+      window.removeEventListener(PICK_GAME, onPick);
+      clearTimeout(t);
+    };
+  }, []);
   const playersRef = useRef(state.players);
   playersRef.current = state.players;
 
@@ -153,10 +176,12 @@ export default function Lobby() {
           return (
             <button
               key={id}
+              id={`game-${id}`}
               onClick={() => (isHost ? setSelected(id) : wish(id, null))}
               style={{ animationDelay: `${i * 0.05}s` }}
               className={`group relative overflow-hidden rounded-3xl bg-gradient-to-br ${g.color} p-5 text-right text-white shadow-lg transition-all animate-rise
                 hover:-translate-y-1 hover:shadow-2xl
+                ${flash === id ? 'animate-wiggle' : ''}
                 ${active ? 'ring-4 ring-sun ring-offset-4 ring-offset-violet-900' : !isHost && myWish?.gameId === id ? 'ring-4 ring-white/70 ring-offset-2 ring-offset-violet-900' : ''}`}
             >
               {fans.length > 0 && (

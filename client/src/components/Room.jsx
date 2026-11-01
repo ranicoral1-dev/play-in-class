@@ -30,6 +30,7 @@ import Twins from '../games/Twins.jsx';
 import Climb from '../games/Climb.jsx';
 import Chat, { useChatTracker, Badges } from './Chat.jsx';
 import { ProfileModal } from './Profile.jsx';
+import { SearchModal } from './Search.jsx';
 import { isMuted, setMuted } from '../sound.js';
 
 const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town, war: War, alias: Alias, odd: Odd, reel: Reel, coin: Coin, about: About, dict: Dict, eretz: Eretz, fast: Fast, count: Count, auction: Auction, seek: Seek, twins: Twins, climb: Climb };
@@ -64,7 +65,7 @@ export default function Room() {
             ))}
         </main>
         <div className="h-fit space-y-4 lg:sticky lg:top-4">
-          <Roster onEditProfile={() => setEditing(true)} />
+          <Roster onEditProfile={() => setEditing(true)} onDm={tracker.openDm} />
           <Chat tracker={tracker} />
         </div>
       </div>
@@ -78,6 +79,19 @@ function RoomHeader({ tracker, onEditProfile }) {
   const { state, leave, showToast } = useRoom();
   const isHost = state.hosts?.includes(state.me);
   const me = state.players.find((p) => p.id === state.me);
+  const [searching, setSearching] = useState(false);
+
+  // Ctrl+K / Cmd+K פותח חיפוש
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setSearching(true);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   function copyLink() {
     const url = `${location.origin}${location.pathname}?code=${state.code}`;
@@ -113,6 +127,13 @@ function RoomHeader({ tracker, onEditProfile }) {
           <span className="max-w-[7rem] truncate">{me?.name}</span>
           <span className="opacity-70">✏️</span>
         </button>
+        <button
+          title="חיפוש משחק או שחקן (Ctrl+K)"
+          className="rounded-xl bg-white/15 px-3 py-2 text-sm font-bold hover:bg-white/25"
+          onClick={() => setSearching(true)}
+        >
+          🔍 חיפוש
+        </button>
         {tracker.showButton && (
           <button
             title="מעבר לצ׳אט"
@@ -139,6 +160,7 @@ function RoomHeader({ tracker, onEditProfile }) {
           יציאה
         </button>
       </div>
+      {searching && <SearchModal onClose={() => setSearching(false)} onDm={tracker.openDm} />}
     </header>
   );
 }
@@ -195,7 +217,7 @@ function SoundButton() {
   );
 }
 
-function Roster({ onEditProfile }) {
+function Roster({ onEditProfile, onDm }) {
   const { state, showToast } = useRoom();
   const [open, setOpen] = useState(false);
   const isHost = state.hosts?.includes(state.me);
@@ -233,6 +255,11 @@ function Roster({ onEditProfile }) {
               {!p.connected && <span className="text-xs"> (מנותק)</span>}
             </span>
             {showScores && <span className="font-display text-lg text-grape">{p.score}</span>}
+            {p.id !== state.me && (
+              <button title={`הודעה פרטית ל${p.name}`} className="hidden text-sm opacity-60 hover:opacity-100 group-hover:inline" onClick={() => onDm(p.id)}>
+                💬
+              </button>
+            )}
             {isHost && (
               <button
                 title={state.hosts.includes(p.id) ? 'להוריד ממארח' : 'להפוך למארח'}

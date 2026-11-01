@@ -6,7 +6,7 @@ let IO = null;
 const MAX_PLAYERS = 24;
 const EMPTY_ROOM_TTL = 30 * 60 * 1000;
 const REVEAL_SEC = 15;
-const CHAT_MAX = 100;
+const CHAT_MAX = 200;
 const CHAT_GAP_MS = 400;
 const COUNTDOWN_MS = 4000; // 3, 2, 1, 0 ויוצאים לדרך
 
@@ -259,6 +259,10 @@ function sanitizeProfile({ name, emoji }) {
 }
 
 // מי תויג בהודעה עם @שם (השם צריך להיגמר בסוף מילה, כדי ש-@דן לא יתפוס את דניאל)
+// הודעה פרטית רואים רק השולח והנמען
+const canSee = (m, pid) => !m.to || m.to === pid || m.pid === pid;
+const chatFor = (room, pid) => room.chat.filter((m) => canSee(m, pid));
+
 function findMentions(room, text) {
   const ids = [];
   for (const p of room.players) {
@@ -301,7 +305,7 @@ export function registerSocket(io, socket) {
     socket.data.pid = pid;
     socket.join(room.code);
     clearTimeout(room.cleanupTimer);
-    socket.emit('chat:history', room.chat);
+    socket.emit('chat:history', chatFor(room, pid));
   }
 
   socket.on('create', (data = {}, ack) => {
@@ -508,9 +512,12 @@ export function registerSocket(io, socket) {
   });
 
   // צ'אט של החדר - פעיל בלובי ובכל המשחקים
-  socket.on('chat:send', (text, ack) => {
+  // אפשר לשלוח טקסט (לכולם) או { text, to } - הודעה פרטית לשחקן אחד
+  socket.on('chat:send', (data, ack) => {
     const { room, pid } = ctx();
     const player = room && getPlayer(room, pid);
+    const text = typeof data === 'object' && data ? data.text : data;
+    const to = typeof data === 'object' && data ? data.to || null : null;
     const msg = cleanText(text, 200);
     if (!player || !msg) return ack?.({ error: 'אין חדר' });
     // משחקים שבהם תיאום בצ'אט הורס את כל העניין (ספירה משותפת)
@@ -526,18 +533,20 @@ export function registerSocket(io, socket) {
       broadcast(room);
       return ack?.({ ok: true, notice: 'הבקשה נשלחה למארח 👑' });
     }
+    if (to && (to === pid || !getPlayer(room, to))) return ack?.({ error: 'השחקן לא בחדר 🤔' });
     const m = {
       id: ++room.chatSeq,
       pid,
       name: player.name,
       emoji: player.emoji,
       text: msg,
-      mentions: findMentions(room, msg),
+      mentions: to ? [] : findMentions(room, msg),
+      ...(to && { to }),
     };
     room.chat.push(m);
     if (room.chat.length > CHAT_MAX) room.chat.shift();
     for (const p of room.players) {
-      if (p.connected && p.socketId) IO.to(p.socketId).emit('chat', m);
+      if (p.connected && p.socketId && canSee(m, p.id)) IO.to(p.socketId).emit('chat', m);
     }
     ack?.({ ok: true });
   });

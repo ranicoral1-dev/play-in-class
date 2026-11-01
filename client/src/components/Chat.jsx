@@ -17,19 +17,27 @@ function useWide() {
   return wide;
 }
 
-// מצב הצ'אט שמשותף לכפתור בכותרת ולצ'אט עצמו: מה נקרא, כמה תיוגים, האם הצ'אט על המסך
+// לאיזו שיחה שייכת הודעה: 'all' לצ'אט הכללי, או המזהה של השחקן השני בשיחה הפרטית
+export const convOf = (m, me) => (!m.to ? 'all' : m.pid === me ? m.to : m.pid);
+
+// מצב הצ'אט שמשותף לכפתור בכותרת ולצ'אט עצמו: מה נקרא, כמה תיוגים, האם הצ'אט על המסך, ובאיזו שיחה
 export function useChatTracker() {
   const { state, chat } = useRoom();
   const ref = useRef();
   const wide = useWide();
   const [open, setOpen] = useState(false);
   const [inView, setInView] = useState(false);
-  const [seenId, setSeenId] = useState(0);
-  const lastId = chat.length ? chat[chat.length - 1].id : 0;
-  const fresh = chat.filter((m) => m.id > seenId && m.pid !== state.me);
+  // null = הצ'אט של כולם; אחרת - שיחה פרטית עם השחקן הזה
+  const [peer, setPeer] = useState(null);
+  const [seen, setSeen] = useState({});
+  const conv = peer || 'all';
+  const fresh = chat.filter((m) => m.pid !== state.me && m.id > (seen[convOf(m, state.me)] || 0));
   const unread = fresh.length;
-  const mentions = fresh.filter((m) => m.mentions?.includes(state.me)).length;
+  const mentions = fresh.filter((m) => m.to === state.me || m.mentions?.includes(state.me)).length;
+  const unreadIn = (key) => fresh.filter((m) => convOf(m, state.me) === key).length;
   const visible = inView && (open || wide);
+  const convMsgs = chat.filter((m) => convOf(m, state.me) === conv);
+  const lastId = convMsgs.length ? convMsgs[convMsgs.length - 1].id : 0;
 
   useEffect(() => {
     const el = ref.current;
@@ -40,18 +48,24 @@ export function useChatTracker() {
   }, []);
 
   useEffect(() => {
-    if (visible) setSeenId(lastId);
-  }, [visible, lastId]);
+    if (visible && lastId) setSeen((old) => (old[conv] === lastId ? old : { ...old, [conv]: lastId }));
+  }, [visible, lastId, conv]);
 
   function goTo() {
     setOpen(true);
     requestAnimationFrame(() => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'center' }));
   }
 
+  // פתיחת שיחה פרטית (או חזרה לכולם עם null)
+  function openDm(pid) {
+    setPeer(pid === state.me ? null : pid);
+    goTo();
+  }
+
   // בטלפון הצ'אט למטה ומקופל - הכפתור תמיד שם. במחשב רק כשגללו והצ'אט לא נראה
   const showButton = !wide || !inView;
 
-  return { ref, open, setOpen, unread, mentions, visible, goTo, showButton, lastId };
+  return { ref, open, setOpen, unread, mentions, unreadIn, visible, goTo, showButton, lastId, peer, setPeer, openDm, convMsgs };
 }
 
 export function Badges({ unread, mentions }) {
@@ -88,7 +102,7 @@ function MessageText({ text, names }) {
 // צ'אט החדר - זמין בלובי ובכל משחק. בטלפון מקופל, עם מונה הודעות שלא נקראו
 export default function Chat({ tracker }) {
   const { state, chat, showToast } = useRoom();
-  const { ref, open, setOpen, unread, mentions, visible, lastId } = tracker;
+  const { ref, open, setOpen, unread, mentions, unreadIn, visible, lastId, peer, setPeer, convMsgs } = tracker;
   const [text, setText] = useState('');
   const [caret, setCaret] = useState(0);
   const [pick, setPick] = useState(0);
@@ -96,16 +110,38 @@ export default function Chat({ tracker }) {
   const inputRef = useRef();
   const names = state.players.map((p) => p.name);
   const closed = state.status === 'game' && GAME_META[state.gameId]?.noChat;
+  const peerPlayer = peer && state.players.find((p) => p.id === peer);
+  // לשוניות: כולם + כל מי שיש איתו שיחה פרטית (ומי שפתוח עכשיו)
+  const dmIds = [...new Set(chat.filter((m) => m.to).map((m) => convOf(m, state.me)))];
+  if (peer && !dmIds.includes(peer)) dmIds.push(peer);
+  const tabs = dmIds.filter((id) => state.players.some((p) => p.id === id));
+
+  // שחקן שעזב - חוזרים לכולם
+  useEffect(() => {
+    if (peer && !peerPlayer) setPeer(null);
+  }, [peer, peerPlayer, setPeer]);
 
   useEffect(() => {
     const el = listRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [lastId, open]);
+  }, [lastId, open, peer]);
 
   // השלמה אוטומטית: הטקסט מה-@ האחרון ועד הסמן
   const before = text.slice(0, caret);
-  const at = before.lastIndexOf('@');
-  const query = at >= 0 && (at === 0 || /\s/.test(before[at - 1])) ? before.slice(at + 1) : null;
+  // אחרי "/chat " משלימים שם גם בלי @
+  const cmd = /^\/chat\s+/i.exec(before);
+  let at = -1;
+  let query = null;
+  if (cmd && !before.slice(cmd[0].length).includes('@')) {
+    at = cmd[0].length;
+    query = before.slice(at);
+  } else {
+    const i = before.lastIndexOf('@');
+    if (i >= 0 && (i === 0 || /\s/.test(before[i - 1]))) {
+      at = i;
+      query = before.slice(i + 1);
+    }
+  }
   const suggestions =
     query != null && query.length <= 16
       ? state.players.filter((p) => p.id !== state.me && p.name.startsWith(query) && p.name !== query).slice(0, 6)
@@ -142,7 +178,31 @@ export default function Chat({ tracker }) {
     if (!msg) return;
     setText('');
     setCaret(0);
-    const res = await emit('chat:send', msg);
+    // /chat @שם - מעבר לשיחה פרטית (ואם כתבו גם הודעה אחרי השם - היא נשלחת לשם). /chat לבד - חזרה לכולם
+    const dm = /^\/chat(?:\s+|$)(.*)$/is.exec(msg);
+    if (dm) {
+      const rest = dm[1].trim().replace(/^@/, '');
+      if (!rest || rest === 'כולם' || rest === 'all') return setPeer(null);
+      const target = [...state.players]
+        .filter((p) => p.id !== state.me)
+        .sort((a, b) => b.name.length - a.name.length)
+        .find((p) => rest === p.name || rest.startsWith(p.name + ' '));
+      if (!target) {
+        setText(msg);
+        return showToast('לא מצאנו שחקן בשם הזה 🤔');
+      }
+      setPeer(target.id);
+      setOpen(true);
+      const body = rest.slice(target.name.length).trim();
+      if (!body) return requestAnimationFrame(() => inputRef.current?.focus());
+      const res = await emit('chat:send', { text: body, to: target.id });
+      if (res.error) {
+        setText(body);
+        showToast(res.error);
+      }
+      return;
+    }
+    const res = await emit('chat:send', peer && msg !== '/host' ? { text: msg, to: peer } : msg);
     if (res.error) {
       if (msg !== '/host') setText(msg);
       showToast(res.error);
@@ -159,9 +219,37 @@ export default function Chat({ tracker }) {
         </span>
       </button>
       <div className={`mt-3 ${open ? '' : 'hidden'} lg:block`}>
-        <div ref={listRef} className="h-64 space-y-2 overflow-y-auto rounded-2xl bg-indigo-50/60 p-2">
-          {chat.length === 0 && <p className="py-8 text-center text-sm text-indigo-300">עוד אין הודעות. תגידו שלום 👋</p>}
-          {chat.map((m) => {
+        {tabs.length > 0 && (
+          <div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">
+            {[null, ...tabs].map((id) => {
+              const p = id && state.players.find((x) => x.id === id);
+              const n = unreadIn(id || 'all');
+              return (
+                <button
+                  key={id || 'all'}
+                  onClick={() => setPeer(id)}
+                  className={`chip shrink-0 gap-1 py-1 text-sm transition ${peer === id ? 'bg-grape text-white shadow' : 'bg-indigo-50 text-indigo-500 hover:bg-indigo-100'}`}
+                >
+                  {p ? (
+                    <>
+                      🔒 {p.emoji} <span className="max-w-[5rem] truncate">{p.name}</span>
+                    </>
+                  ) : (
+                    '👥 כולם'
+                  )}
+                  {n > 0 && peer !== id && <span className="rounded-full bg-bubble px-1.5 text-xs font-bold text-white">{n}</span>}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        <div ref={listRef} className={`h-64 space-y-2 overflow-y-auto rounded-2xl p-2 ${peer ? 'bg-pink-50/70' : 'bg-indigo-50/60'}`}>
+          {convMsgs.length === 0 && (
+            <p className="py-8 text-center text-sm text-indigo-300">
+              {peerPlayer ? `שיחה פרטית עם ${peerPlayer.name} 🔒 רק שניכם רואים` : 'עוד אין הודעות. תגידו שלום 👋'}
+            </p>
+          )}
+          {convMsgs.map((m) => {
             const mine = m.pid === state.me;
             const tagged = !mine && m.mentions?.includes(state.me);
             return (
@@ -204,7 +292,13 @@ export default function Chat({ tracker }) {
           <input
             ref={inputRef}
             className="input min-w-0 flex-1 py-2 text-base"
-            placeholder={closed ? 'הצ׳אט סגור במשחק הזה 🤫' : 'כתבו הודעה… (@ לתיוג, /host לבקש מארח)'}
+            placeholder={
+              closed
+                ? 'הצ׳אט סגור במשחק הזה 🤫'
+                : peerPlayer
+                  ? `הודעה פרטית ל${peerPlayer.name}… (/chat לחזרה לכולם)`
+                  : 'כתבו הודעה… (@ לתיוג, /chat @שם לפרטי, /host למארח)'
+            }
             disabled={closed}
             maxLength={200}
             value={text}

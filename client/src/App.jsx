@@ -43,9 +43,9 @@ export default function App() {
     const onDisconnect = () => setConnected(false);
     const onChatHistory = (list) => setChat(list || []);
     const onChat = (m) => {
-      setChat((old) => [...old, m].slice(-100));
+      setChat((old) => [...old, m].slice(-200));
       const me = getPlayerId();
-      if (m.pid !== me) (m.mentions?.includes(me) ? ding : pop)();
+      if (m.pid !== me) (m.to === me || m.mentions?.includes(me) ? ding : pop)();
     };
     const onKicked = () => {
       sessionStorage.removeItem('room');
