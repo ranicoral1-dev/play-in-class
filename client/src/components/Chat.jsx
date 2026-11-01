@@ -142,12 +142,35 @@ export default function Chat({ tracker }) {
       query = before.slice(i + 1);
     }
   }
+  const isHost = state.hosts?.includes(state.me);
+  // "/" בתחילת ההודעה (לפני רווח) - מציגים את כל הפקודות
+  const cmdQuery = /^\/\S*$/.test(before) ? before.toLowerCase() : null;
+  const commands = [
+    { cmd: '/chat', emoji: '🔒', label: '/chat @שם', hint: 'הודעה פרטית', run: () => fill('/chat ') },
+    peer && { cmd: '/chat', emoji: '👥', label: '/chat', hint: 'חזרה לצ׳אט של כולם', run: () => (setPeer(null), fill('')) },
+    !isHost && { cmd: '/host', emoji: '👑', label: '/host', hint: 'בקשה להיות מארח', run: () => (fill(''), sendText('/host')) },
+  ].filter(Boolean);
   const suggestions =
-    query != null && query.length <= 16
-      ? state.players.filter((p) => p.id !== state.me && p.name.startsWith(query) && p.name !== query).slice(0, 6)
-      : [];
+    cmdQuery != null
+      ? commands.filter((c) => c.cmd.startsWith(cmdQuery)).map((c) => ({ key: c.label, ...c }))
+      : query != null && query.length <= 16
+        ? state.players
+            .filter((p) => p.id !== state.me && p.name.startsWith(query) && p.name !== query)
+            .slice(0, 6)
+            .map((p) => ({ key: p.id, emoji: p.emoji, label: p.name, avatar: true, run: () => mention(p.name) }))
+        : [];
 
-  useEffect(() => setPick(0), [query]);
+  useEffect(() => setPick(0), [query, cmdQuery]);
+
+  // מחליף את כל הטקסט ומשאיר את הסמן בסוף
+  function fill(next) {
+    setText(next);
+    setCaret(next.length);
+    requestAnimationFrame(() => {
+      inputRef.current?.focus();
+      inputRef.current?.setSelectionRange(next.length, next.length);
+    });
+  }
 
   function mention(name) {
     const next = `${text.slice(0, at)}@${name} ${text.slice(caret)}`;
@@ -168,13 +191,16 @@ export default function Chat({ tracker }) {
       setPick((i) => (i + d + suggestions.length) % suggestions.length);
     } else if (e.key === 'Enter' || e.key === 'Tab') {
       e.preventDefault();
-      mention(suggestions[pick].name);
+      suggestions[pick]?.run();
     }
   }
 
-  async function send(e) {
+  function send(e) {
     e.preventDefault();
-    const msg = text.trim();
+    sendText(text.trim());
+  }
+
+  async function sendText(msg) {
     if (!msg) return;
     setText('');
     setCaret(0);
@@ -273,17 +299,18 @@ export default function Chat({ tracker }) {
           {suggestions.length > 0 && (
             <ul className="absolute inset-x-0 bottom-full z-10 mb-1 overflow-hidden rounded-2xl bg-white shadow-xl ring-1 ring-indigo-100">
               {suggestions.map((p, i) => (
-                <li key={p.id}>
+                <li key={p.key}>
                   <button
                     type="button"
                     onMouseDown={(e) => e.preventDefault()}
-                    onClick={() => mention(p.name)}
+                    onClick={p.run}
                     className={`flex w-full items-center gap-2 px-3 py-1.5 text-right font-semibold ${
                       i === pick ? 'bg-amber-50' : 'hover:bg-indigo-50'
                     }`}
                   >
-                    <Avatar emoji={p.emoji} size="sm" />
-                    {p.name}
+                    {p.avatar ? <Avatar emoji={p.emoji} size="sm" /> : <span className="w-7 text-center text-lg">{p.emoji}</span>}
+                    <span dir={p.avatar ? undefined : 'ltr'}>{p.label}</span>
+                    {p.hint && <span className="mr-auto text-sm font-normal text-indigo-400">{p.hint}</span>}
                   </button>
                 </li>
               ))}
