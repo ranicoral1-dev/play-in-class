@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { GAME_META, GENRES } from '../lib.js';
 import { useRoom, Avatar } from './ui.jsx';
 
@@ -57,7 +58,8 @@ export function SearchModal({ onClose, onDm }) {
 
   const row = (i) => `flex w-full items-center gap-3 rounded-2xl px-3 py-2 text-right transition ${i === pick ? 'bg-amber-50' : 'hover:bg-indigo-50'}`;
 
-  return (
+  // portal לגוף הדף: ה-backdrop-blur של הכותרת לוכד אלמנטים fixed בתוכה ומסתיר את החלון מאחורי הלובי
+  return createPortal(
     <div className="fixed inset-0 z-40 flex items-start justify-center bg-black/40 px-4 pt-[10vh] backdrop-blur-sm" onClick={onClose}>
       <div className="card w-full max-w-lg animate-pop p-4" onClick={(e) => e.stopPropagation()}>
         <input
@@ -108,6 +110,7 @@ export function SearchModal({ onClose, onDm }) {
           {!items.length && <p className="py-6 text-center text-indigo-300">לא מצאנו כלום 🤷</p>}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
