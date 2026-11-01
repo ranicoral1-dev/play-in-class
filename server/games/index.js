@@ -19,6 +19,8 @@ import fast from './fast.js';
 import count from './count.js';
 import auction from './auction.js';
 import seek from './seek.js';
+import twins from './twins.js';
+import climb from './climb.js';
 
 export const GAMES = {
   [wyr.id]: wyr,
@@ -42,4 +44,6 @@ export const GAMES = {
   [count.id]: count,
   [auction.id]: auction,
   [seek.id]: seek,
+  [twins.id]: twins,
+  [climb.id]: climb,
 };

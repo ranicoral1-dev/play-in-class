@@ -26,11 +26,13 @@ import Fast from '../games/Fast.jsx';
 import Count from '../games/Count.jsx';
 import Auction from '../games/Auction.jsx';
 import Seek from '../games/Seek.jsx';
+import Twins from '../games/Twins.jsx';
+import Climb from '../games/Climb.jsx';
 import Chat, { useChatTracker, Badges } from './Chat.jsx';
 import { ProfileModal } from './Profile.jsx';
 import { isMuted, setMuted } from '../sound.js';
 
-const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town, war: War, alias: Alias, odd: Odd, reel: Reel, coin: Coin, about: About, dict: Dict, eretz: Eretz, fast: Fast, count: Count, auction: Auction, seek: Seek };
+const GAME_COMPONENTS = { wyr: WouldYouRather, wordle: Wordle, party: Party, story: Story, sameword: SameWord, quote: Quote, complete: Complete, poker: Poker, town: Town, war: War, alias: Alias, odd: Odd, reel: Reel, coin: Coin, about: About, dict: Dict, eretz: Eretz, fast: Fast, count: Count, auction: Auction, seek: Seek, twins: Twins, climb: Climb };
 
 export default function Room() {
   const { state } = useRoom();
