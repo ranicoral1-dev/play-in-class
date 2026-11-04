@@ -28,11 +28,16 @@ export default function Home({ showToast }) {
   return (
     <div className="mx-auto flex min-h-screen max-w-5xl flex-col items-center px-4 py-8 sm:py-14">
       <header className="mb-8 text-center animate-rise">
-        <div className="mb-3 flex justify-center gap-2 text-4xl sm:text-5xl">
-          {Object.values(GAME_META).map((g, i) => (
-            <span key={g.name} className="animate-wiggle" style={{ animationDelay: `${i * 0.15}s` }}>
-              {g.emoji}
-            </span>
+        {/* שורות של עד 10 אייקונים, כדי שהשורה לא תהיה ארוכה מדי */}
+        <div className="mb-3 flex flex-col items-center gap-2 text-4xl sm:text-5xl">
+          {chunk(Object.values(GAME_META), 10).map((row, r) => (
+            <div key={r} className="flex flex-wrap justify-center gap-2">
+              {row.map((g, i) => (
+                <span key={g.name} className="animate-wiggle" style={{ animationDelay: `${(r * 10 + i) * 0.15}s` }}>
+                  {g.emoji}
+                </span>
+              ))}
+            </div>
           ))}
         </div>
         <h1 className="font-display text-5xl leading-tight text-white drop-shadow-[0_4px_0_rgba(0,0,0,0.25)] sm:text-7xl">
@@ -84,4 +89,10 @@ export default function Home({ showToast }) {
       </div>
     </div>
   );
+}
+
+function chunk(arr, size) {
+  const out = [];
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+  return out;
 }
