@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Component, useEffect, useState } from 'react';
 import { emit, socket } from '../socket.js';
 import { GAME_META } from '../lib.js';
 import { useRoom, Avatar, PlayerTag } from './ui.jsx';
@@ -62,7 +62,11 @@ export default function Room() {
                 </p>
               </div>
             ) : (
-              GameComp && state.game && <GameComp g={state.game} key={state.gameId} />
+              GameComp && state.game && (
+                <GameErrorBoundary key={state.gameId}>
+                  <GameComp g={state.game} />
+                </GameErrorBoundary>
+              )
             ))}
         </main>
         <div className="h-fit space-y-4 lg:sticky lg:top-4">
@@ -289,4 +293,29 @@ function Roster({ onEditProfile, onDm }) {
       </ul>
     </aside>
   );
+}
+
+// אם משחק קורס - מראים הודעה במקום מסך ריק, ומנסים שוב בעדכון הבא מהשרת
+class GameErrorBoundary extends Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error) {
+    console.error('game crashed', error);
+    clearTimeout(this.retry);
+    this.retry = setTimeout(() => this.setState({ error: null }), 1500);
+  }
+  componentWillUnmount() {
+    clearTimeout(this.retry);
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="card text-center">
+        <div className="mb-2 text-5xl">😵</div>
+        <p className="font-display text-xl">משהו השתבש בתצוגה - מנסים שוב…</p>
+      </div>
+    );
+  }
 }

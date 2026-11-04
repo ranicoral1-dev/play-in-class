@@ -104,11 +104,14 @@ function DrawPhase({ g }) {
   const [editing, setEditing] = useState(!g.mySize);
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(null);
+  // הגודל שנשלח - נשמר כאן כי אישור השליחה מגיע לפני שהמצב מהשרת מתעדכן
+  const [sent, setSent] = useState(g.mySize);
   const [hover, setHover] = useState(null);
   const board = useRef(null);
   const dirty = useRef(false);
   const ids = state.players.filter((p) => p.inGame).map((p) => p.id);
-  const submitted = !!g.mySize;
+  const sentSize = g.mySize || sent;
+  const submitted = !!sentSize;
   const shown = hover || size;
 
   async function submit(auto = false) {
@@ -124,6 +127,7 @@ function DrawPhase({ g }) {
     if (res.error) return showToast(res.error);
     dirty.current = false;
     setPreview(image);
+    setSent({ w: size.w, h: size.h });
     setEditing(false);
   }
 
@@ -182,7 +186,7 @@ function DrawPhase({ g }) {
                     className="btn-ghost"
                     onClick={() => {
                       dirty.current = false;
-                      setSize(g.mySize);
+                      setSize(sentSize);
                       setEditing(false);
                     }}
                   >
@@ -198,12 +202,12 @@ function DrawPhase({ g }) {
           {!editing && (
             <div className="text-center">
               <Waiting emoji="📮">המשבצת נשלחה! מחכים לשאר המאיירים…</Waiting>
-              {preview && (
+              {preview && sentSize && (
                 <img
                   src={preview}
                   alt=""
                   className="mx-auto max-h-[40vh] rounded-xl border-[3px] border-ink"
-                  style={{ aspectRatio: `${g.mySize.w * CW} / ${g.mySize.h * CH}` }}
+                  style={{ aspectRatio: `${sentSize.w * CW} / ${sentSize.h * CH}` }}
                 />
               )}
               <EditButton onClick={() => setEditing(true)} />
