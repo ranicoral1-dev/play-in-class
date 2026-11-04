@@ -45,7 +45,7 @@ export default function Home({ showToast }) {
           <br />
           <span className="text-sun">כי למה לא</span>
         </h1>
-        <p className="mt-3 text-lg font-medium text-indigo-100">5 משחקים מטורפים. קוד אחד. כל הכיתה.</p>
+        <p className="mt-3 text-lg font-medium text-indigo-100">{Object.keys(GAME_META).length} משחקים מטורפים. קוד אחד. כל הכיתה.</p>
       </header>
 
       <div className="card w-full max-w-md animate-rise" style={{ animationDelay: '.1s' }}>
