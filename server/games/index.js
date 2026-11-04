@@ -21,6 +21,7 @@ import auction from './auction.js';
 import seek from './seek.js';
 import twins from './twins.js';
 import climb from './climb.js';
+import comic from './comic.js';
 
 export const GAMES = {
   [wyr.id]: wyr,
@@ -46,4 +47,5 @@ export const GAMES = {
   [seek.id]: seek,
   [twins.id]: twins,
   [climb.id]: climb,
+  [comic.id]: comic,
 };
